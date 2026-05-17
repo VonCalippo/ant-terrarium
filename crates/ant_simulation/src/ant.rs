@@ -1,5 +1,5 @@
 use rand::Rng;
-use crate::grid::{Grid, GridPos, Direction, Material};
+use crate::grid::{Grid, GridPos, Direction, Material, PheromoneLayer, PheromoneType};
 
 // ── Actions ──
 
@@ -173,6 +173,7 @@ pub struct Impulse {
 
 pub struct LocalPerception {
     pub cells: [[Material; 3]; 3],
+    pub pheromones: [[PheromoneLayer; 3]; 3],
     pub food_detected: bool,
     pub food_positions: Vec<(i8, i8)>,
     pub danger_detected: bool,
@@ -184,12 +185,48 @@ pub struct LocalPerception {
     pub dirt_adjacent: Vec<Direction>,
 }
 
+impl LocalPerception {
+    pub fn strongest_pheromone_dir(&self, ptype: PheromoneType) -> Option<(Direction, u8)> {
+        let get = |l: &PheromoneLayer| -> u8 {
+            match ptype {
+                PheromoneType::Food => l.food,
+                PheromoneType::Home => l.home,
+                PheromoneType::Danger => l.danger,
+                PheromoneType::Dig => l.dig,
+                PheromoneType::Queen => l.queen,
+                PheromoneType::Death => l.death,
+                PheromoneType::Waste => l.waste,
+            }
+        };
+        let center_val = get(&self.pheromones[1][1]);
+        let mut best_dir: Option<(Direction, u8)> = None;
+        let dirs = [
+            (Direction::N, 1, 0), (Direction::S, 1, 2),
+            (Direction::E, 2, 1), (Direction::W, 0, 1),
+            (Direction::NE, 2, 0), (Direction::NW, 0, 0),
+            (Direction::SE, 2, 2), (Direction::SW, 0, 2),
+        ];
+        for (dir, sx, sy) in &dirs {
+            let val = get(&self.pheromones[*sy][*sx]);
+            if val > 0 && val > center_val {
+                match best_dir {
+                    Some((_, best_val)) if val > best_val => best_dir = Some((*dir, val)),
+                    None => best_dir = Some((*dir, val)),
+                    _ => {}
+                }
+            }
+        }
+        best_dir
+    }
+}
+
 pub fn perceive(
     grid: &Grid,
     pos: GridPos,
     home: GridPos,
 ) -> LocalPerception {
     let mut cells = [[Material::Air; 3]; 3];
+    let mut pheromones = [[PheromoneLayer::default(); 3]; 3];
     let mut food_positions = Vec::new();
     let mut danger_positions = Vec::new();
     let mut food_detected = false;
@@ -201,15 +238,20 @@ pub fn perceive(
 
     for dy in -1i8..=1 {
         for dx in -1i8..=1 {
-            if dx == 0 && dy == 0 { continue; }
+            let sx = (dx + 1) as usize;
+            let sy = (dy + 1) as usize;
             let nx = pos.x as i32 + dx as i32;
             let ny = pos.y as i32 + dy as i32;
-            if nx < 0 || ny < 0 { continue; }
+            if nx < 0 || ny < 0 {
+                pheromones[sy][sx] = PheromoneLayer::default();
+                continue;
+            }
             let np = GridPos::new(nx as u16, ny as u16);
             if let Some(cell) = grid.get(np) {
-                let sx = (dx + 1) as usize;
-                let sy = (dy + 1) as usize;
+                pheromones[sy][sx] = cell.pheromones;
                 cells[sy][sx] = cell.material;
+
+                if dx == 0 && dy == 0 { continue; }
 
                 match cell.material {
                     Material::Food => {
@@ -231,6 +273,8 @@ pub fn perceive(
                     }
                     _ => {}
                 }
+            } else {
+                pheromones[sy][sx] = PheromoneLayer::default();
             }
         }
     }
@@ -244,7 +288,8 @@ pub fn perceive(
     }
 
     LocalPerception {
-        cells, food_detected, food_positions,
+        cells, pheromones,
+        food_detected, food_positions,
         danger_detected, danger_positions,
         nearby_ant_count, nearest_ant_dir: None,
         queen_detected, queen_dir,
@@ -312,6 +357,40 @@ pub fn calculate_impulses(
         impulses.push(Impulse { action: Action::Groom, weight: 0.5 });
     }
 
+    // ── Pheromone-driven impulses ──
+    let ps = traits.pheromone_sensitivity;
+
+    // FOOD pheromone attraction
+    if let Some((dir, strength)) = perception.strongest_pheromone_dir(PheromoneType::Food) {
+        let w = (strength as f32 / 255.0) * 0.6 * (1.0 + ps);
+        impulses.push(Impulse { action: Action::Move(dir), weight: w });
+    }
+
+    // HOME pheromone attraction
+    if let Some((dir, strength)) = perception.strongest_pheromone_dir(PheromoneType::Home) {
+        let w = (strength as f32 / 255.0) * 0.5 * (1.0 + ps);
+        impulses.push(Impulse { action: Action::Move(dir), weight: w });
+    }
+
+    // DANGER pheromone repel
+    if let Some((_dir, strength)) = perception.strongest_pheromone_dir(PheromoneType::Danger) {
+        let w = (strength as f32 / 255.0) * 0.7 * (1.0 + ps);
+        impulses.push(Impulse { action: Action::Flee { from: body.pos }, weight: w });
+    }
+
+    // DIG pheromone attraction
+    if let Some((dir, strength)) = perception.strongest_pheromone_dir(PheromoneType::Dig) {
+        let w = (strength as f32 / 255.0) * 0.3 * (1.0 + ps);
+        impulses.push(Impulse { action: Action::Dig(dir), weight: w });
+    }
+
+    // DEATH pheromone repel
+    let d_strength = perception.pheromones[1][1].death as f32 / 255.0;
+    if d_strength > 0.0 {
+        let w = d_strength * 0.6;
+        impulses.push(Impulse { action: Action::Move(opposite_dir(body.direction)), weight: w });
+    }
+
     impulses.push(Impulse { action: Action::Idle, weight: 0.1 });
     impulses
 }
@@ -373,13 +452,16 @@ pub fn execute_action(
                 if grid.contains(new_pos) {
                     if let Some(cell) = grid.get(new_pos) {
                         if !cell.material.is_solid() || memory.recently_visited(new_pos, 2) {
-                            // Skip occupied/recent; try alternate
                             let alt = alternate_direction(dir);
                             if let Some(alt_pos) = body.pos.neighbor(alt) {
                                 if grid.contains(alt_pos) && grid.get(alt_pos).map(|c| !c.material.is_solid()).unwrap_or(false) && !memory.recently_visited(alt_pos, 2) {
                                     body.pos = alt_pos;
                                     body.direction = alt;
                                     memory.push_position(alt_pos);
+                                    // Deposit FOOD trail if carrying food
+                                    if body.carrying == Some(CarriedItem::Food) {
+                                        grid.deposit_pheromone(alt_pos, PheromoneType::Food, 30);
+                                    }
                                     events.push(AntEvent::Moved { from: body.pos, to: alt_pos });
                                     return events;
                                 }
@@ -389,6 +471,9 @@ pub fn execute_action(
                             body.pos = new_pos;
                             body.direction = dir;
                             memory.push_position(new_pos);
+                            if body.carrying == Some(CarriedItem::Food) {
+                                grid.deposit_pheromone(new_pos, PheromoneType::Food, 30);
+                            }
                             events.push(AntEvent::Moved { from: body.pos, to: new_pos });
                         }
                     }
@@ -400,6 +485,7 @@ pub fn execute_action(
                 if let Some(cell) = grid.get(target_pos) {
                     if cell.material.is_diggable() {
                         crate::terrain::start_dig(grid, target_pos, &mut Vec::new());
+                        grid.deposit_pheromone(target_pos, PheromoneType::Dig, 100);
                         events.push(AntEvent::StartedDigging { pos: target_pos });
                     }
                 }
@@ -438,6 +524,7 @@ pub fn execute_action(
                     if let Some(cell) = grid.get(pos) {
                         if cell.material == Material::Air {
                             grid.set_material(pos, Material::LooseDirt);
+                            grid.deposit_pheromone(pos, PheromoneType::Waste, 60);
                             body.carrying = None;
                             brain.maintenance_drive = (brain.maintenance_drive - 0.4).max(0.0);
                             events.push(AntEvent::DumpedDirt { pos });
@@ -457,6 +544,7 @@ pub fn execute_action(
             let dx = body.pos.x as i32 - from.x as i32;
             let dy = body.pos.y as i32 - from.y as i32;
             let dir = approx_direction(dx, dy);
+            grid.deposit_pheromone(from, PheromoneType::Danger, 150);
             if let Some(new_pos) = body.pos.neighbor(dir) {
                 if grid.contains(new_pos) && grid.get(new_pos).map(|c| !c.material.is_solid()).unwrap_or(false) {
                     body.pos = new_pos;
@@ -498,6 +586,22 @@ pub fn update_needs(brain: &mut AntBrain, traits: &AntTraits, perception: &Local
     brain.agitation = (brain.stress * 0.5 + brain.hunger * 0.3 + brain.fear * 0.2).clamp(0.0, 1.0);
     brain.social_drive = (brain.social_drive + (0.5 - brain.social_drive) * 0.01).clamp(0.0, 1.0);
     brain.maintenance_drive = (brain.maintenance_drive + 0.001).min(1.0);
+
+    // Pheromone effects
+    let q_strength = perception.pheromones[1][1].queen as f32 / 255.0;
+    if q_strength > 0.0 {
+        brain.stress = (brain.stress - q_strength * 0.02).max(0.0);
+    }
+
+    let danger_phero = perception.pheromones[1][1].danger as f32 / 255.0;
+    if danger_phero > 0.0 {
+        brain.fear = (brain.fear + danger_phero * 0.005).min(1.0);
+    }
+
+    let death_phero = perception.pheromones[1][1].death as f32 / 255.0;
+    if death_phero > 0.0 {
+        brain.fear = (brain.fear + death_phero * 0.008).min(1.0);
+    }
 }
 
 // ── Helpers ──
@@ -520,6 +624,14 @@ fn alternate_direction(dir: Direction) -> Direction {
     match dir {
         N => NE, S => SW, E => SE, W => NW,
         NE => E, NW => N, SE => S, SW => W,
+    }
+}
+
+fn opposite_dir(dir: Direction) -> Direction {
+    use Direction::*;
+    match dir {
+        N => S, S => N, E => W, W => E,
+        NE => SW, SW => NE, NW => SE, SE => NW,
     }
 }
 
@@ -575,6 +687,7 @@ mod tests {
         let traits = AntTraits::random(&mut rand::thread_rng());
         let perception = LocalPerception {
             cells: [[Material::Air; 3]; 3],
+            pheromones: [[PheromoneLayer::default(); 3]; 3],
             food_detected: false, food_positions: vec![],
             danger_detected: false, danger_positions: vec![],
             nearby_ant_count: 0, nearest_ant_dir: None,

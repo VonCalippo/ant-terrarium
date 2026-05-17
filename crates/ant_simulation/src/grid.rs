@@ -57,6 +57,11 @@ impl Default for PheromoneLayer {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PheromoneType {
+    Food, Home, Danger, Dig, Queen, Death, Waste,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GridPos {
     pub x: u16,
@@ -239,6 +244,46 @@ impl Grid {
         let y = self.surface_y();
         GridPos::new(self.width / 2, y)
     }
+
+    pub fn evaporate_pheromones(&mut self) {
+        const RATE: u8 = 1;
+        for cell in &mut self.cells {
+            cell.pheromones.food = cell.pheromones.food.saturating_sub(RATE);
+            cell.pheromones.home = cell.pheromones.home.saturating_sub(RATE);
+            cell.pheromones.danger = cell.pheromones.danger.saturating_sub(RATE);
+            cell.pheromones.dig = cell.pheromones.dig.saturating_sub(RATE);
+            cell.pheromones.queen = cell.pheromones.queen.saturating_sub(RATE);
+            cell.pheromones.death = cell.pheromones.death.saturating_sub(RATE);
+            cell.pheromones.waste = cell.pheromones.waste.saturating_sub(RATE);
+        }
+    }
+
+    pub fn deposit_pheromone(&mut self, pos: GridPos, ptype: PheromoneType, amount: u8) {
+        if let Some(cell) = self.get_mut(pos) {
+            let target = match ptype {
+                PheromoneType::Food => &mut cell.pheromones.food,
+                PheromoneType::Home => &mut cell.pheromones.home,
+                PheromoneType::Danger => &mut cell.pheromones.danger,
+                PheromoneType::Dig => &mut cell.pheromones.dig,
+                PheromoneType::Queen => &mut cell.pheromones.queen,
+                PheromoneType::Death => &mut cell.pheromones.death,
+                PheromoneType::Waste => &mut cell.pheromones.waste,
+            };
+            *target = target.saturating_add(amount);
+        }
+    }
+
+    pub fn pheromone_at(&self, pos: GridPos, ptype: PheromoneType) -> u8 {
+        self.get(pos).map(|c| match ptype {
+            PheromoneType::Food => c.pheromones.food,
+            PheromoneType::Home => c.pheromones.home,
+            PheromoneType::Danger => c.pheromones.danger,
+            PheromoneType::Dig => c.pheromones.dig,
+            PheromoneType::Queen => c.pheromones.queen,
+            PheromoneType::Death => c.pheromones.death,
+            PheromoneType::Waste => c.pheromones.waste,
+        }).unwrap_or(0)
+    }
 }
 
 #[cfg(test)]
@@ -377,6 +422,40 @@ mod tests {
         assert_eq!(positions.len(), 12);
         assert_eq!(positions[0], GridPos::new(0, 0));
         assert_eq!(positions[11], GridPos::new(3, 2));
+    }
+
+    #[test]
+    fn test_pheromone_evaporation() {
+        let mut grid = Grid::new(10, 10);
+        grid.deposit_pheromone(GridPos::new(5, 5), PheromoneType::Food, 200);
+        assert_eq!(grid.pheromone_at(GridPos::new(5, 5), PheromoneType::Food), 200);
+        grid.evaporate_pheromones();
+        assert_eq!(grid.pheromone_at(GridPos::new(5, 5), PheromoneType::Food), 199);
+    }
+
+    #[test]
+    fn test_pheromone_deposit_saturates() {
+        let mut grid = Grid::new(10, 10);
+        grid.deposit_pheromone(GridPos::new(5, 5), PheromoneType::Food, 250);
+        grid.deposit_pheromone(GridPos::new(5, 5), PheromoneType::Food, 20);
+        assert_eq!(grid.pheromone_at(GridPos::new(5, 5), PheromoneType::Food), 255);
+    }
+
+    #[test]
+    fn test_pheromone_evaporates_to_zero() {
+        let mut grid = Grid::new(10, 10);
+        grid.deposit_pheromone(GridPos::new(5, 5), PheromoneType::Food, 1);
+        grid.evaporate_pheromones();
+        assert_eq!(grid.pheromone_at(GridPos::new(5, 5), PheromoneType::Food), 0);
+    }
+
+    #[test]
+    fn test_pheromone_multiple_types() {
+        let mut grid = Grid::new(10, 10);
+        grid.deposit_pheromone(GridPos::new(5, 5), PheromoneType::Food, 100);
+        grid.deposit_pheromone(GridPos::new(5, 5), PheromoneType::Home, 50);
+        assert_eq!(grid.pheromone_at(GridPos::new(5, 5), PheromoneType::Food), 100);
+        assert_eq!(grid.pheromone_at(GridPos::new(5, 5), PheromoneType::Home), 50);
     }
 
     #[test]

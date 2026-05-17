@@ -128,6 +128,7 @@ impl Simulation {
         self.events.clear();
         self.ant_events.clear();
 
+        self.grid.evaporate_pheromones();
         let dig_events = process_digging(&mut self.grid, &mut self.pending_digs);
         let stability_events = update_stability(&mut self.grid);
         let ant_events = self.tick_ants();
