@@ -1,4 +1,5 @@
 use crate::ant::{AntState, AntEvent, perceive, update_needs, calculate_impulses, select_action, execute_action};
+use crate::ecology::tick_ecology;
 use crate::grid::Grid;
 use crate::queen::{AntAge, Queen, QueenEvent, LifeStage, tick_life_stages, tick_corpses};
 use crate::terrain::{DigState, TerrainEvent, process_digging, update_stability};
@@ -149,6 +150,7 @@ impl Simulation {
         self.queen_events.clear();
 
         self.grid.evaporate_pheromones();
+        tick_ecology(&mut self.grid);
 
         // Queen tick
         self.queen_events = self.queen.tick(&mut self.grid);

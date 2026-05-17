@@ -228,9 +228,9 @@ pub fn perceive(
     let mut cells = [[Material::Air; 3]; 3];
     let mut pheromones = [[PheromoneLayer::default(); 3]; 3];
     let mut food_positions = Vec::new();
-    let mut danger_positions = Vec::new();
+    let danger_positions = Vec::new();
     let mut food_detected = false;
-    let mut danger_detected = false;
+    let danger_detected = false;
     let mut dirt_adjacent = Vec::new();
     let nearby_ant_count: u8 = 0;
     let mut queen_detected = false;
@@ -254,13 +254,9 @@ pub fn perceive(
                 if dx == 0 && dy == 0 { continue; }
 
                 match cell.material {
-                    Material::Food => {
+                    Material::Food | Material::Fungus => {
                         food_detected = true;
                         food_positions.push((dx, dy));
-                    }
-                    Material::Fungus => {
-                        danger_detected = true;
-                        danger_positions.push((dx, dy));
                     }
                     Material::Dirt | Material::WetDirt | Material::Sand => {
                         dirt_adjacent.push(match (dx, dy) {
@@ -494,16 +490,20 @@ pub fn execute_action(
         Action::CollectFood => {
             for dir in &Direction::ALL {
                 if let Some(pos) = body.pos.neighbor(*dir) {
-                    if let Some(cell) = grid.get(pos) {
-                        if cell.material == Material::Food {
-                            grid.set_material(pos, Material::Air);
-                            body.carrying = Some(CarriedItem::Food);
-                            brain.hunger = (brain.hunger - 0.3).max(0.0);
-                            memory.recent_food.push(pos);
-                            if memory.recent_food.len() > 8 { memory.recent_food.remove(0); }
-                            events.push(AntEvent::CollectedFood { pos });
-                            break;
-                        }
+                    let is_food = grid.get(pos).map(|c| c.material == Material::Food).unwrap_or(false);
+                    let is_fungus = grid.get(pos).map(|c| c.material == Material::Fungus).unwrap_or(false);
+                    if is_food || is_fungus {
+                        grid.set_material(pos, Material::Air);
+                        body.carrying = Some(CarriedItem::Food);
+                        brain.hunger = if is_fungus {
+                            (brain.hunger - 0.2).max(0.0)
+                        } else {
+                            (brain.hunger - 0.3).max(0.0)
+                        };
+                        memory.recent_food.push(pos);
+                        if memory.recent_food.len() > 8 { memory.recent_food.remove(0); }
+                        events.push(AntEvent::CollectedFood { pos });
+                        break;
                     }
                 }
             }
