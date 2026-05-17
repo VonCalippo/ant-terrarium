@@ -36,7 +36,8 @@
       "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); where.exe rustup 2>&1; where.exe rustup-init 2>&1)",
       "Bash(rustup toolchain *)",
       "Bash(cargo check *)",
-      "Bash(cargo test *)"
+      "Bash(cargo test *)",
+      "Bash(cargo run *)"
     ]
   }
 }
