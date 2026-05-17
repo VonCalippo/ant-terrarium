@@ -4,6 +4,14 @@ use crate::app::SimResource;
 use crate::pixelart::PixelAssets;
 use crate::assets::{self, CELL_SIZE, GRID_WIDTH, GRID_HEIGHT};
 
+fn sky_gradient_color(y: u16, total_height: u16) -> Color {
+    let t = y as f32 / total_height as f32;
+    let r = 0.06 + t * 0.12;
+    let g = 0.08 + t * 0.15;
+    let b = 0.18 + t * 0.25;
+    Color::srgb(r, g, b)
+}
+
 #[derive(Resource)]
 pub struct SimulationState {
     pub snapshot: Option<Snapshot>,
@@ -35,41 +43,29 @@ pub struct GlassOverlay;
 pub struct SkyBackground;
 
 pub fn setup_sky_background(
-    mut commands: Commands,
-    pixel_assets: Option<Res<PixelAssets>>,
+    _commands: Commands,
+    _pixel_assets: Res<PixelAssets>,
 ) {
-    let Some(pixel_assets) = pixel_assets else { return; };
-    let width_px = GRID_WIDTH as f32 * CELL_SIZE;
-    let height_px = GRID_HEIGHT as f32 * CELL_SIZE;
-
-    commands.spawn((
-        SkyBackground,
-        Sprite {
-            image: pixel_assets.sky_bg.clone(),
-            custom_size: Some(Vec2::new(width_px, height_px)),
-            color: Color::srgba(0.9, 0.9, 1.0, 0.3),
-            ..default()
-        },
-        Transform::from_xyz(width_px / 2.0, -height_px / 2.0, -1.0),
-    ));
+    // Sky is rendered per-cell via the material color in setup_grid_sprites
+    // Air cells get a sky gradient color based on their y position
 }
 
 pub fn setup_grid_sprites(
     mut commands: Commands,
     simulation: Res<SimResource>,
-    pixel_assets: Option<Res<PixelAssets>>,
+    pixel_assets: Res<PixelAssets>,
 ) {
-    let pixel_assets = match pixel_assets {
-        Some(p) => p,
-        None => return,
-    };
     let snap = Snapshot::from_simulation(&simulation);
 
     for y in 0..snap.height {
         for x in 0..snap.width {
             let idx = y as usize * snap.width as usize + x as usize;
             let cell = snap.cells[idx];
-            let color = assets::material_color(cell.material);
+            let color = if cell.material == ant_simulation::grid::Material::Air {
+                sky_gradient_color(y as u16, snap.height)
+            } else {
+                assets::material_color(cell.material)
+            };
             let world_x = x as f32 * CELL_SIZE;
             let world_y = -(y as f32 * CELL_SIZE);
 

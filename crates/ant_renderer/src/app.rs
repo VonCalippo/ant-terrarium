@@ -70,7 +70,7 @@ impl Plugin for TerrariumPlugin {
             ants::spawn_ant_sprites,
             sprites::setup_glass_overlay,
             hud::setup_hud,
-        ));
+        ).chain());
 
         app.add_systems(Update, (
             input::handle_input,
