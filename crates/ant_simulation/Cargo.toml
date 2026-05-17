@@ -1,0 +1,9 @@
+[package]
+name = "ant_simulation"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+bincode = "2"
+rand = "0.8"
