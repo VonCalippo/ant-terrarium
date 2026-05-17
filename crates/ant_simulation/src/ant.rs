@@ -657,10 +657,18 @@ impl AntState {
 
     pub fn spawn_initial_ants(&mut self, count: usize, grid: &Grid) {
         let home = grid.queen_position();
+        let surface_y = grid.surface_y();
         let mut rng = rand::thread_rng();
+        // Spawn ants on Air cells near the surface, above ground
         for _ in 0..count {
-            let x = (home.x as i32 + rng.gen_range(-3..=3) as i32).clamp(0, grid.width as i32 - 1) as u16;
-            let y = (home.y as i32 + rng.gen_range(-3..=3) as i32).clamp(0, grid.height as i32 - 1) as u16;
+            // Find an Air cell just above the surface
+            let x = (home.x as i32 + rng.gen_range(-4..=4) as i32).clamp(0, grid.width as i32 - 1) as u16;
+            // Prefer air cells at or just above the surface
+            let y = if surface_y > 0 {
+                (surface_y as i32 - 1 - rng.gen_range(0..=1) as i32).max(0) as u16
+            } else {
+                surface_y
+            };
             self.spawn(GridPos::new(x, y), home, &mut rng);
         }
     }

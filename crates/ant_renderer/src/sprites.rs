@@ -4,13 +4,7 @@ use crate::app::SimResource;
 use crate::pixelart::PixelAssets;
 use crate::assets::{self, CELL_SIZE, GRID_WIDTH, GRID_HEIGHT};
 
-fn sky_gradient_color(y: u16, total_height: u16) -> Color {
-    let t = y as f32 / total_height as f32;
-    let r = 0.06 + t * 0.12;
-    let g = 0.08 + t * 0.15;
-    let b = 0.18 + t * 0.25;
-    Color::srgb(r, g, b)
-}
+// Sky colors now in assets::sky_color()
 
 #[derive(Resource)]
 pub struct SimulationState {
@@ -56,15 +50,16 @@ pub fn setup_grid_sprites(
     pixel_assets: Res<PixelAssets>,
 ) {
     let snap = Snapshot::from_simulation(&simulation);
+    let surface_y = simulation.grid.surface_y();
 
     for y in 0..snap.height {
         for x in 0..snap.width {
             let idx = y as usize * snap.width as usize + x as usize;
             let cell = snap.cells[idx];
-            let color = if cell.material == ant_simulation::grid::Material::Air {
-                sky_gradient_color(y as u16, snap.height)
-            } else {
-                assets::material_color(cell.material)
+            let color = match cell.material {
+                ant_simulation::grid::Material::Air => assets::sky_color(y as u16, snap.height),
+                ant_simulation::grid::Material::Dirt if y == surface_y => assets::surface_color(),
+                _ => assets::material_color(cell.material),
             };
             let world_x = x as f32 * CELL_SIZE;
             let world_y = -(y as f32 * CELL_SIZE);
