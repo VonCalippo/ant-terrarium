@@ -1,8 +1,12 @@
 use bevy::prelude::*;
+use ant_simulation::ant::Action;
 use crate::app::SimResource;
 use crate::sprites::SimulationState;
 use crate::pixelart::{PixelAssets, ant_sprite_handle};
 use crate::assets::CELL_SIZE;
+
+const ANT_SIZE: f32 = 2.0;   // multiple of CELL_SIZE
+const ANT_CARRY_SIZE: f32 = 2.4;
 
 #[derive(Component)]
 pub struct AntSprite {
@@ -18,15 +22,14 @@ pub(crate) fn spawn_ant_sprites(
 
     for ant in &snap.ants {
         let image = ant_sprite_handle(&pixel_assets, ant.direction);
-        let tint = agitation_tint(ant.agitation);
         let x = ant.pos.x as f32 * CELL_SIZE;
         let y = -(ant.pos.y as f32 * CELL_SIZE);
 
         commands.spawn((
             Sprite {
                 image,
-                color: tint,
-                custom_size: Some(Vec2::splat(CELL_SIZE * 1.2)),
+                color: Color::WHITE,
+                custom_size: Some(Vec2::splat(CELL_SIZE * ANT_SIZE)),
                 ..default()
             },
             Transform::from_xyz(x, y, 3.0),
@@ -51,33 +54,22 @@ pub(crate) fn update_ant_sprites(
     };
 
     let dt = time.delta_secs();
-    let lerp_speed = 15.0;
+    let lerp_speed = 18.0;
 
     for (ant_sprite, mut sprite, mut transform, mut target) in query.iter_mut() {
         if let Some(ant) = snapshot.ants.iter().find(|a| a.id == ant_sprite.ant_id) {
-            // Update target position from sim
             target.x = ant.pos.x as f32 * CELL_SIZE;
             target.y = -(ant.pos.y as f32 * CELL_SIZE);
 
-            // Direction sprite
             sprite.image = ant_sprite_handle(&pixel_assets, ant.direction);
 
-            // Color tint
-            let mut tint = agitation_tint(ant.agitation);
-            if ant.stress > 0.7 {
-                let pulse = (ant.agitation * 0.3).min(0.3);
-                tint = tint.mix(&Color::srgb(1.0, 0.3, 0.3), pulse);
-            }
-            sprite.color = tint;
+            // Color: base body tint + action indicator
+            sprite.color = action_tint(ant.action, ant.stress, ant.agitation);
 
-            // Size
-            if ant.carrying.is_some() {
-                sprite.custom_size = Some(Vec2::splat(CELL_SIZE * 1.4));
-            } else {
-                sprite.custom_size = Some(Vec2::splat(CELL_SIZE * 1.2));
-            }
+            sprite.custom_size = Some(Vec2::splat(
+                CELL_SIZE * if ant.carrying.is_some() { ANT_CARRY_SIZE } else { ANT_SIZE }
+            ));
 
-            // Smooth lerp toward target every frame
             let t = (dt * lerp_speed).min(1.0);
             transform.translation.x += (target.x - transform.translation.x) * t;
             transform.translation.y += (target.y - transform.translation.y) * t;
@@ -85,8 +77,22 @@ pub(crate) fn update_ant_sprites(
     }
 }
 
-fn agitation_tint(agitation: f32) -> Color {
-    let calm = Color::srgb(1.0, 0.95, 0.85);
-    let active = Color::srgb(1.0, 0.8, 0.6);
-    calm.mix(&active, agitation)
+fn action_tint(action: Action, stress: f32, _agitation: f32) -> Color {
+    let base = match action {
+        Action::Idle | Action::Rest => Color::srgb(0.9, 0.85, 0.75),
+        Action::Move(_) => Color::srgb(1.0, 0.9, 0.8),
+        Action::Dig(_) => Color::srgb(0.9, 0.8, 0.3),       // yellow-ish when digging
+        Action::CollectFood => Color::srgb(0.5, 1.0, 0.4),    // green when collecting
+        Action::CarryFood { .. } => Color::srgb(0.6, 1.0, 0.4), // bright green carrying food
+        Action::CarryDirt { .. } => Color::srgb(0.8, 0.6, 0.4), // brown carrying dirt
+        Action::Eat => Color::srgb(0.5, 0.9, 0.5),
+        Action::Flee { .. } => Color::srgb(1.0, 0.3, 0.2),    // red when fleeing
+        Action::Groom => Color::srgb(0.7, 0.8, 1.0),
+    };
+
+    if stress > 0.7 {
+        base.mix(&Color::srgb(1.0, 0.2, 0.2), (stress - 0.7) * 2.0)
+    } else {
+        base
+    }
 }

@@ -18,6 +18,12 @@ pub struct Snapshot {
 pub struct CellSnapshot {
     pub material: Material,
     pub stability: u8,
+    pub max_pheromone: (u8, u8), // (type_index 0-6, strength 0-255)
+}
+
+impl CellSnapshot {
+    pub fn phero_strength(&self) -> u8 { self.max_pheromone.1 }
+    pub fn phero_type(&self) -> u8 { self.max_pheromone.0 }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -41,9 +47,18 @@ pub enum Command {
 
 impl Snapshot {
     pub fn from_simulation(sim: &crate::tick::Simulation) -> Self {
-        let cells: Vec<CellSnapshot> = sim.grid.cells.iter().map(|c| CellSnapshot {
-            material: c.material,
-            stability: c.stability,
+        let cells: Vec<CellSnapshot> = sim.grid.cells.iter().map(|c| {
+            let p = c.pheromones;
+            let types: [(u8, u8); 7] = [
+                (0, p.food), (1, p.home), (2, p.danger), (3, p.dig),
+                (4, p.queen), (5, p.death), (6, p.waste),
+            ];
+            let max = types.iter().max_by_key(|(_, v)| *v).copied().unwrap_or((0, 0));
+            CellSnapshot {
+                material: c.material,
+                stability: c.stability,
+                max_pheromone: max,
+            }
         }).collect();
 
         let ants: Vec<AntSnapshot> = sim.ants.bodies.iter().enumerate().map(|(i, body)| {

@@ -118,7 +118,7 @@ pub fn setup_glass_overlay(mut commands: Commands) {
     let center_x = width_px / 2.0;
     let center_y = -height_px / 2.0;
 
-    let border_color = Color::srgba(0.23, 0.23, 0.35, 1.0);
+    let border_color = Color::srgba(0.35, 0.35, 0.45, 1.0); // lighter glass frame
     let border_thickness = 3.0;
 
     commands.spawn((
@@ -203,12 +203,37 @@ pub fn apply_snapshot(
         if let Some(cell) = snapshot.cells.get(idx) {
             let mut color = assets::material_color(cell.material);
 
+            // Pheromone overlay
+            let ps = cell.phero_strength();
+            if ps > 15 {
+                let pc = phero_color(cell.phero_type(), ps);
+                color = color.mix(&pc, (ps as f32 / 255.0) * 0.5);
+            }
+
             if cell.stability < 64 {
                 let alpha = cell.stability as f32 / 64.0;
-                color.set_alpha(alpha.max(0.2));
+                color.set_alpha(alpha.max(0.3));
+            }
+
+            if cell.material == ant_simulation::grid::Material::Air {
+                color.set_alpha(0.65);
             }
 
             sprite.color = color;
         }
+    }
+}
+
+fn phero_color(ptype: u8, s: u8) -> Color {
+    let v = s as f32 / 255.0;
+    match ptype {
+        0 => Color::srgb(0.1, 0.6 + v * 0.4, 0.1),     // Food = green
+        1 => Color::srgb(0.1, 0.2 + v * 0.5, 0.7 + v * 0.3), // Home = blue
+        2 => Color::srgb(0.9 + v * 0.1, 0.1, 0.1),       // Danger = red
+        3 => Color::srgb(0.7, 0.6 + v * 0.3, 0.1),       // Dig = yellow
+        4 => Color::srgb(0.9, 0.75 + v * 0.2, 0.15),     // Queen = gold
+        5 => Color::srgb(0.5, 0.05, 0.25 + v * 0.3),     // Death = dark purple
+        6 => Color::srgb(0.35 + v * 0.2, 0.25, 0.15),    // Waste = brown
+        _ => Color::WHITE,
     }
 }

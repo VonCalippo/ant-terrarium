@@ -7,31 +7,28 @@ pub const QUEEN_COLOR: Color = Color::srgb(0.91, 0.75, 0.25);
 
 pub fn material_color(material: ant_simulation::grid::Material) -> Color {
     match material {
-        ant_simulation::grid::Material::Air => Color::srgb(0.40, 0.55, 0.75),    // softer sky blue
-        ant_simulation::grid::Material::Dirt => Color::srgb(0.42, 0.28, 0.10),    // dark earth brown
-        ant_simulation::grid::Material::LooseDirt => Color::srgb(0.55, 0.40, 0.18),
-        ant_simulation::grid::Material::WetDirt => Color::srgb(0.28, 0.22, 0.12),  // darker wet
-        ant_simulation::grid::Material::Sand => Color::srgb(0.70, 0.62, 0.40),     // tan
-        ant_simulation::grid::Material::Stone => Color::srgb(0.35, 0.35, 0.38),    // dark gray
-        ant_simulation::grid::Material::Water => Color::srgb(0.12, 0.30, 0.55),    // deep blue
-        ant_simulation::grid::Material::Food => Color::srgb(0.91, 0.75, 0.25),
-        ant_simulation::grid::Material::OrganicWaste => Color::srgb(0.35, 0.25, 0.15),
-        ant_simulation::grid::Material::Fungus => Color::srgb(0.25, 0.55, 0.25),
-        ant_simulation::grid::Material::Egg => Color::srgb(0.95, 0.95, 0.85),
-        ant_simulation::grid::Material::Larva => Color::srgb(1.0, 0.9, 0.7),
+        ant_simulation::grid::Material::Air => Color::srgb(0.50, 0.65, 0.85),    // sky blue
+        ant_simulation::grid::Material::Dirt => Color::srgb(0.35, 0.22, 0.08),    // dark brown
+        ant_simulation::grid::Material::LooseDirt => Color::srgb(0.55, 0.38, 0.18), // lighter brown
+        ant_simulation::grid::Material::WetDirt => Color::srgb(0.22, 0.16, 0.08),  // very dark wet
+        ant_simulation::grid::Material::Sand => Color::srgb(0.75, 0.65, 0.40),     // sandy tan
+        ant_simulation::grid::Material::Stone => Color::srgb(0.30, 0.30, 0.33),    // dark gray
+        ant_simulation::grid::Material::Water => Color::srgb(0.10, 0.30, 0.60),    // deep blue
+        ant_simulation::grid::Material::Food => Color::srgb(0.95, 0.80, 0.20),     // bright amber
+        ant_simulation::grid::Material::OrganicWaste => Color::srgb(0.28, 0.18, 0.10), // dark organic
+        ant_simulation::grid::Material::Fungus => Color::srgb(0.20, 0.50, 0.25),   // green fungus
+        ant_simulation::grid::Material::Egg => Color::srgb(0.95, 0.95, 0.80),      // cream
+        ant_simulation::grid::Material::Larva => Color::srgb(1.0, 0.88, 0.65),     // warm cream
     }
 }
 
 pub fn surface_color() -> Color {
-    Color::srgb(0.30, 0.45, 0.18) // mossy grass green for surface row
+    Color::srgb(0.25, 0.50, 0.15) // rich grass green
 }
 
 pub fn sky_color(y: u16, total: u16) -> Color {
     let t = y as f32 / total as f32;
-    let r = 0.35 + t * 0.15;
-    let g = 0.50 + t * 0.15;
-    let b = 0.68 + t * 0.18;
-    Color::srgb(r, g, b)
+    Color::srgb(0.45 + t * 0.15, 0.60 + t * 0.15, 0.78 + t * 0.15)
 }
 
 pub fn ant_body_color(agitation: f32, carrying: Option<ant_simulation::ant::CarriedItem>) -> Color {
