@@ -9,7 +9,28 @@
       "Bash(git init *)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git config *)"
+      "Bash(git config *)",
+      "Bash(git rm *)",
+      "Bash(New-Item *)",
+      "PowerShell(New-Item *)",
+      "Bash(cargo build *)",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(where.exe rustc 2>&1; where.exe cargo 2>&1; $env:Path)",
+      "PowerShell(Get-ChildItem -Recurse -File \"C:\\\\Users\\\\Mattia\\\\OpenCode\\\\Workspace\\\\Ant\" | Where-Object { $_.Extension -in '.toml', '.rs' } | Select-Object FullName)",
+      "Bash(rustc --version)",
+      "Bash(cargo --version)",
+      "PowerShell(rustc *)",
+      "Bash(curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs)",
+      "Bash(sh -s -- -y)",
+      "PowerShell(cargo *)",
+      "PowerShell(Test-Path *)",
+      "Bash(export PATH=\"$HOME/.cargo/bin:$PATH\")",
+      "Bash([ -x \"$d/cargo\" ])",
+      "Bash(break)",
+      "Bash([ -x \"$d/cargo.exe\" ])",
+      "PowerShell(Get-Command *)",
+      "Bash(curl -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh)",
+      "Bash(sh *)"
     ]
   }
 }
