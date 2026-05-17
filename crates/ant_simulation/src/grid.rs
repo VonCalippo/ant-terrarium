@@ -198,7 +198,7 @@ impl Grid {
     pub fn surface_y(&self) -> u16 {
         for y in 0..self.height {
             for x in 0..self.width {
-                if self.get(GridPos::new(x, y)).map(|c| c.material == Material::Air).unwrap_or(false) {
+                if self.get(GridPos::new(x, y)).map(|c| c.material != Material::Air).unwrap_or(false) {
                     return y;
                 }
             }
@@ -367,7 +367,7 @@ mod tests {
     #[test]
     fn test_grid_surface_y_all_air() {
         let grid = Grid::new(10, 10);
-        assert_eq!(grid.surface_y(), 0);
+        assert_eq!(grid.surface_y(), 10); // no terrain, returns height
     }
 
     #[test]

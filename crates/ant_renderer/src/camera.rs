@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy::input::mouse::MouseWheel;
+use bevy::input::mouse::{MouseWheel, MouseMotion};
 use crate::assets::{GRID_WIDTH, GRID_HEIGHT, CELL_SIZE};
 
 pub fn setup_camera(mut commands: Commands) {
@@ -62,7 +62,7 @@ pub fn pan_camera(
 
 pub fn snap_to_queen(
     keyboard: Res<ButtonInput<KeyCode>>,
-    simulation: Res<ant_simulation::tick::Simulation>,
+    simulation: Res<crate::app::SimResource>,
     mut query: Query<&mut Transform, With<Camera2d>>,
 ) {
     if keyboard.just_pressed(KeyCode::KeyQ) {

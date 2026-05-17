@@ -5,5 +5,5 @@ edition.workspace = true
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
-bincode = "2"
+bincode = { version = "2", features = ["serde"] }
 rand = "0.8"

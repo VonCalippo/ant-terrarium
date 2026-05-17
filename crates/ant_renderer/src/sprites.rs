@@ -1,8 +1,6 @@
 use bevy::prelude::*;
-use ant_simulation::{
-    snapshot::Snapshot,
-    tick::Simulation,
-};
+use ant_simulation::snapshot::Snapshot;
+use crate::app::SimResource;
 use crate::assets::{self, CELL_SIZE, GRID_WIDTH, GRID_HEIGHT, QUEEN_COLOR};
 
 #[derive(Resource)]
@@ -34,7 +32,7 @@ pub struct GlassOverlay;
 
 pub fn setup_grid_sprites(
     mut commands: Commands,
-    simulation: Res<Simulation>,
+    simulation: Res<SimResource>,
 ) {
     let snap = Snapshot::from_simulation(&simulation);
 
@@ -136,10 +134,10 @@ pub fn setup_glass_overlay(mut commands: Commands) {
 
 pub fn tick_simulation(
     time: Res<Time>,
-    mut simulation: ResMut<Simulation>,
+    mut simulation: ResMut<SimResource>,
     mut state: ResMut<SimulationState>,
 ) {
-    let interval_ms = match simulation.tick_interval_ms() {
+    let _interval_ms = match simulation.tick_interval_ms() {
         Some(ms) => ms as f32 / 1000.0,
         None => return,
     };

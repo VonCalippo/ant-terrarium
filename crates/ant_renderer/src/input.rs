@@ -2,8 +2,9 @@ use bevy::prelude::*;
 use ant_simulation::{
     grid::Material,
     snapshot::Command,
-    tick::{Simulation, Speed},
+    tick::Speed,
 };
+use crate::app::SimResource;
 use crate::assets::{CELL_SIZE, GRID_WIDTH, GRID_HEIGHT};
 
 #[derive(Resource, Default)]
@@ -25,7 +26,7 @@ pub fn handle_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     window: Query<&Window>,
     camera: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
-    mut simulation: ResMut<Simulation>,
+    mut simulation: ResMut<SimResource>,
     mut state: ResMut<InputState>,
 ) {
     state.pending_commands.clear();
@@ -55,8 +56,8 @@ pub fn handle_input(
     let Ok((camera, cam_transform)) = camera.get_single() else { return };
 
     let world_pos = match camera.viewport_to_world_2d(cam_transform, cursor) {
-        Some(pos) => pos,
-        None => return,
+        Ok(pos) => pos,
+        Err(_) => return,
     };
 
     let grid_x = (world_pos.x / CELL_SIZE).floor();
@@ -113,7 +114,7 @@ pub fn handle_input(
         let path = save_path();
         if let Ok(bytes) = std::fs::read(&path) {
             if let Ok(save) = ant_simulation::persistence::SaveFile::from_bytes(&bytes) {
-                *simulation = save.to_simulation();
+                simulation.0 = save.to_simulation();
                 info!("Loaded from {:?}", path);
             }
         }
@@ -148,7 +149,7 @@ pub fn handle_input(
 
 pub fn auto_save(
     time: Res<Time>,
-    simulation: Res<Simulation>,
+    simulation: Res<SimResource>,
     mut timer: Local<Timer>,
 ) {
     if timer.duration().as_secs_f32() == 0.0 {

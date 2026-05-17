@@ -1,4 +1,4 @@
-use crate::grid::{GridPos, Material};
+use crate::grid::Material;
 use crate::terrain::TerrainEvent;
 use crate::tick::Speed;
 
@@ -46,7 +46,7 @@ impl Snapshot {
 mod tests {
     use super::*;
     use crate::tick::Simulation;
-    use crate::grid::Material;
+    use crate::grid::{GridPos, Material};
 
     #[test]
     fn test_snapshot_from_simulation() {

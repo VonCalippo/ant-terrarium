@@ -1,3 +1,8 @@
+[package]
+name = "ant_terrarium"
+version = "0.1.0"
+edition = "2021"
+
 [workspace]
 members = ["crates/*"]
 resolver = "2"
@@ -6,7 +11,11 @@ resolver = "2"
 version = "0.1.0"
 edition = "2021"
 
-[dependencies]
-bevy = { version = "0.15", default-features = false, features = ["bevy_sprite", "bevy_ui", "bevy_input", "bevy_window"] }
+[workspace.dependencies]
+bevy = { version = "0.15", default-features = false, features = ["bevy_sprite", "bevy_ui", "bevy_winit"] }
 ant_simulation = { path = "crates/ant_simulation" }
 ant_renderer = { path = "crates/ant_renderer" }
+
+[dependencies]
+bevy.workspace = true
+ant_renderer.workspace = true

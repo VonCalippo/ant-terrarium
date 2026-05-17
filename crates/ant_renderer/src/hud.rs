@@ -1,5 +1,6 @@
 use bevy::prelude::*;
-use ant_simulation::tick::{Simulation, Speed};
+use ant_simulation::tick::Speed;
+use crate::app::SimResource;
 
 #[derive(Resource)]
 pub struct HudState {
@@ -115,7 +116,7 @@ pub fn setup_hud(mut commands: Commands) {
 }
 
 pub fn update_hud(
-    simulation: Res<Simulation>,
+    simulation: Res<SimResource>,
     mut tick_text: Query<&mut Text, (With<TickText>, Without<SpeedText>)>,
     mut speed_text: Query<&mut Text, (With<SpeedText>, Without<TickText>)>,
     mut queen_text: Query<&mut Text, (With<QueenStatusText>, Without<TickText>, Without<SpeedText>)>,

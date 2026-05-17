@@ -7,10 +7,20 @@ use crate::{
     camera,
 };
 
-pub struct TerrariumPlugin;
+#[derive(Resource)]
+pub struct SimResource(pub Simulation);
 
-impl TerrariumPlugin {
-    fn load_or_create() -> Simulation {
+impl std::ops::Deref for SimResource {
+    type Target = Simulation;
+    fn deref(&self) -> &Simulation { &self.0 }
+}
+
+impl std::ops::DerefMut for SimResource {
+    fn deref_mut(&mut self) -> &mut Simulation { &mut self.0 }
+}
+
+impl SimResource {
+    fn load_or_create() -> Self {
         let appdata = std::env::var("APPDATA").unwrap_or_else(|_| ".".to_string());
         let path = std::path::PathBuf::from(appdata)
             .join("ant_terrarium")
@@ -20,23 +30,25 @@ impl TerrariumPlugin {
         if let Ok(bytes) = std::fs::read(&path) {
             if let Ok(save) = ant_simulation::persistence::SaveFile::from_bytes(&bytes) {
                 info!("Loaded save from {:?}", path);
-                return save.to_simulation();
+                return SimResource(save.to_simulation());
             }
         }
 
         info!("No save found, creating fresh world");
-        Simulation::from_grid(
+        SimResource(Simulation::from_grid(
             ant_simulation::grid::Grid::generate_initial_world(
                 crate::assets::GRID_WIDTH,
                 crate::assets::GRID_HEIGHT,
             )
-        )
+        ))
     }
 }
 
+pub struct TerrariumPlugin;
+
 impl Plugin for TerrariumPlugin {
     fn build(&self, app: &mut App) {
-        let simulation = Self::load_or_create();
+        let simulation = SimResource::load_or_create();
 
         app.insert_resource(simulation);
         app.insert_resource(SimulationState::default());

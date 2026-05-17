@@ -63,9 +63,10 @@ pub fn start_dig(grid: &Grid, pos: GridPos, pending: &mut Vec<DigState>) -> bool
     };
 
     if let Some(ticks) = cell.material.dig_ticks() {
-        if !pending.iter().any(|d| d.target == pos) {
-            pending.push(DigState { target: pos, ticks_remaining: ticks });
+        if pending.iter().any(|d| d.target == pos) {
+            return false;
         }
+        pending.push(DigState { target: pos, ticks_remaining: ticks });
         true
     } else {
         false
@@ -89,11 +90,17 @@ pub fn update_stability(grid: &mut Grid) -> Vec<TerrainEvent> {
                 continue;
             }
 
+            // Phase 1: read all needed data immutably
             let has_support = match grid.cell_below(pos) {
                 Some(below) => below.material.is_solid() && !below.material.is_terrain(),
                 None => false,
             };
+            let pos_below = GridPos::new(pos.x, pos.y + 1);
+            let below_is_unsupportive = grid.get(pos_below)
+                .map(|b| !b.material.is_solid() || b.material.is_terrain())
+                .unwrap_or(false);
 
+            // Phase 2: apply mutations
             let cell = grid.get_mut(pos).unwrap();
 
             if has_support || y == height - 1 {
@@ -109,21 +116,17 @@ pub fn update_stability(grid: &mut Grid) -> Vec<TerrainEvent> {
                 }
             }
 
-            if cell.material == Material::LooseDirt && cell.stability == 0 {
-                if let Some(below) = grid.cell_below(pos) {
-                    if !below.material.is_solid() || below.material.is_terrain() {
-                        cell.material = Material::Air;
-                        events.push(TerrainEvent::Collapse { pos, from: Material::LooseDirt, to: Material::Air });
-                    }
-                }
+            if cell.material == Material::LooseDirt && cell.stability == 0 && below_is_unsupportive {
+                cell.material = Material::Air;
+                events.push(TerrainEvent::Collapse { pos, from: Material::LooseDirt, to: Material::Air });
             }
         }
     }
 
     if !events.is_empty() {
-        let positions: Vec<GridPos> = events.iter().map(|e| match e {
-            TerrainEvent::Collapse { pos, .. } => *pos,
-            _ => unreachable!(),
+        let positions: Vec<GridPos> = events.iter().filter_map(|e| match e {
+            TerrainEvent::Collapse { pos, .. } => Some(*pos),
+            _ => None,
         }).collect();
         if positions.len() > 1 {
             events.push(TerrainEvent::CollapseChain { positions });
@@ -191,15 +194,15 @@ mod tests {
         grid.set_material(GridPos::new(5, 5), Material::WetDirt);
         let mut pending = vec![DigState { target: GridPos::new(5, 5), ticks_remaining: 2 }];
 
-        let events = process_digging(&mut grid, &mut pending);
+        let _events = process_digging(&mut grid, &mut pending);
         assert_eq!(pending.len(), 1);
         assert_eq!(pending[0].ticks_remaining, 1);
 
-        let events2 = process_digging(&mut grid, &mut pending);
+        let _events2 = process_digging(&mut grid, &mut pending);
         assert_eq!(grid.get(GridPos::new(5, 5)).unwrap().material, Material::LooseDirt);
 
         start_dig(&grid, GridPos::new(5, 5), &mut pending);
-        let events3 = process_digging(&mut grid, &mut pending);
+        let _events3 = process_digging(&mut grid, &mut pending);
         assert_eq!(grid.get(GridPos::new(5, 5)).unwrap().material, Material::Air);
     }
 
