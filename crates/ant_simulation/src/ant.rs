@@ -20,7 +20,7 @@ pub enum Action {
 impl Action {
     pub fn base_ticks(self) -> u8 {
         match self {
-            Action::Move(_) => 1,
+            Action::Move(_) => 0,
             Action::Dig(_) => 7,
             Action::CollectFood => 3,
             Action::Eat => 5,
@@ -659,17 +659,10 @@ impl AntState {
         let home = grid.queen_position();
         let surface_y = grid.surface_y();
         let mut rng = rand::thread_rng();
-        // Spawn ants on Air cells near the surface, above ground
         for _ in 0..count {
-            // Find an Air cell just above the surface
             let x = (home.x as i32 + rng.gen_range(-4..=4) as i32).clamp(0, grid.width as i32 - 1) as u16;
-            // Prefer air cells at or just above the surface
-            let y = if surface_y > 0 {
-                (surface_y as i32 - 1 - rng.gen_range(0..=1) as i32).max(0) as u16
-            } else {
-                surface_y
-            };
-            self.spawn(GridPos::new(x, y), home, &mut rng);
+            // Spawn ON the surface (dirt row), not in air
+            self.spawn(GridPos::new(x, surface_y), home, &mut rng);
         }
     }
 }
@@ -682,7 +675,7 @@ mod tests {
 
     #[test]
     fn test_action_base_ticks() {
-        assert_eq!(Action::Move(Direction::N).base_ticks(), 1);
+        assert_eq!(Action::Move(Direction::N).base_ticks(), 0);
         assert_eq!(Action::Dig(Direction::S).base_ticks(), 7);
         assert_eq!(Action::Rest.base_ticks(), 10);
         assert_eq!(Action::Eat.base_ticks(), 5);

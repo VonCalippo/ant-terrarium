@@ -68,7 +68,7 @@ pub fn update_ant_sprites(
 
             // Smooth movement: lerp toward target
             let target = vec2(ant.pos.x as f32 * CELL_SIZE, -(ant.pos.y as f32 * CELL_SIZE));
-            let speed = 12.0; // lerp speed
+            let speed = 20.0; // lerp speed
             let current = vec2(transform.translation.x, transform.translation.y);
             let new_pos = current.lerp(target, (time.delta_secs() * speed).min(1.0));
             transform.translation.x = new_pos.x;
