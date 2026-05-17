@@ -12,8 +12,9 @@ pub struct AntSprite {
 pub fn spawn_ant_sprites(
     mut commands: Commands,
     simulation: Res<SimResource>,
-    pixel_assets: Res<PixelAssets>,
+    pixel_assets: Option<Res<PixelAssets>>,
 ) {
+    let Some(pixel_assets) = pixel_assets else { return };
     let snap = ant_simulation::snapshot::Snapshot::from_simulation(&simulation);
 
     for ant in &snap.ants {

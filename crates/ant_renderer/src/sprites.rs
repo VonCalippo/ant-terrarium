@@ -36,8 +36,9 @@ pub struct SkyBackground;
 
 pub fn setup_sky_background(
     mut commands: Commands,
-    pixel_assets: Res<PixelAssets>,
+    pixel_assets: Option<Res<PixelAssets>>,
 ) {
+    let Some(pixel_assets) = pixel_assets else { return; };
     let width_px = GRID_WIDTH as f32 * CELL_SIZE;
     let height_px = GRID_HEIGHT as f32 * CELL_SIZE;
 
@@ -56,8 +57,12 @@ pub fn setup_sky_background(
 pub fn setup_grid_sprites(
     mut commands: Commands,
     simulation: Res<SimResource>,
-    pixel_assets: Res<PixelAssets>,
+    pixel_assets: Option<Res<PixelAssets>>,
 ) {
+    let pixel_assets = match pixel_assets {
+        Some(p) => p,
+        None => return,
+    };
     let snap = Snapshot::from_simulation(&simulation);
 
     for y in 0..snap.height {
