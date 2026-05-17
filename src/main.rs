@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, window::WindowLevel};
 
 fn main() {
     App::new()
@@ -6,8 +6,10 @@ fn main() {
             DefaultPlugins.set(WindowPlugin {
                 primary_window: Some(Window {
                     title: "Ant Terrarium".into(),
-                    resolution: (1024.0, 768.0).into(),
+                    resolution: (800.0, 600.0).into(),
                     resizable: true,
+                    decorations: false,
+                    window_level: WindowLevel::AlwaysOnTop,
                     ..default()
                 }),
                 ..default()

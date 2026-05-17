@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use ant_simulation::tick::Simulation;
 use crate::{
-    ants,
+    ants, widget,
     sprites::{self, SimulationState},
     input,
     hud::{self, HudState},
@@ -81,6 +81,9 @@ impl Plugin for TerrariumPlugin {
             camera::keyboard_pan,
             camera::snap_to_queen,
             hud::update_hud,
+            widget::window_drag,
+            widget::toggle_always_on_top,
+            widget::escape_close,
         ));
     }
 }
