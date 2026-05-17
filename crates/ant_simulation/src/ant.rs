@@ -447,10 +447,10 @@ pub fn execute_action(
             if let Some(new_pos) = body.pos.neighbor(dir) {
                 if grid.contains(new_pos) {
                     if let Some(cell) = grid.get(new_pos) {
-                        if !cell.material.is_solid() || memory.recently_visited(new_pos, 2) {
+                        if cell.material.is_walkable() && memory.recently_visited(new_pos, 2) {
                             let alt = alternate_direction(dir);
                             if let Some(alt_pos) = body.pos.neighbor(alt) {
-                                if grid.contains(alt_pos) && grid.get(alt_pos).map(|c| !c.material.is_solid()).unwrap_or(false) && !memory.recently_visited(alt_pos, 2) {
+                                if grid.contains(alt_pos) && grid.get(alt_pos).map(|c| c.material.is_walkable()).unwrap_or(false) && !memory.recently_visited(alt_pos, 2) {
                                     body.pos = alt_pos;
                                     body.direction = alt;
                                     memory.push_position(alt_pos);
@@ -546,7 +546,7 @@ pub fn execute_action(
             let dir = approx_direction(dx, dy);
             grid.deposit_pheromone(from, PheromoneType::Danger, 150);
             if let Some(new_pos) = body.pos.neighbor(dir) {
-                if grid.contains(new_pos) && grid.get(new_pos).map(|c| !c.material.is_solid()).unwrap_or(false) {
+                if grid.contains(new_pos) && grid.get(new_pos).map(|c| c.material.is_walkable()).unwrap_or(false) {
                     body.pos = new_pos;
                     memory.push_position(new_pos);
                     memory.recent_dangers.push(from);
@@ -661,8 +661,9 @@ impl AntState {
         let mut rng = rand::thread_rng();
         for _ in 0..count {
             let x = (home.x as i32 + rng.gen_range(-4..=4) as i32).clamp(0, grid.width as i32 - 1) as u16;
-            // Spawn ON the surface (dirt row), not in air
-            self.spawn(GridPos::new(x, surface_y), home, &mut rng);
+            // Spawn on air cell just above surface so ant can walk on dirt
+            let y = if surface_y > 0 { surface_y - 1 } else { 0 };
+            self.spawn(GridPos::new(x, y), home, &mut rng);
         }
     }
 }

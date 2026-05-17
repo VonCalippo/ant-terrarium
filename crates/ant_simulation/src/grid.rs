@@ -25,6 +25,10 @@ impl Material {
         !matches!(self, Material::Air | Material::Water)
     }
 
+    pub fn is_walkable(self) -> bool {
+        !matches!(self, Material::Stone)
+    }
+
     pub fn is_diggable(self) -> bool {
         matches!(self, Material::Dirt | Material::WetDirt | Material::Sand | Material::LooseDirt)
     }
@@ -307,6 +311,14 @@ mod tests {
         assert!(Material::Stone.is_solid());
         assert!(!Material::Air.is_solid());
         assert!(!Material::Water.is_solid());
+    }
+
+    #[test]
+    fn test_material_is_walkable() {
+        assert!(Material::Air.is_walkable());
+        assert!(Material::Dirt.is_walkable());
+        assert!(Material::Sand.is_walkable());
+        assert!(!Material::Stone.is_walkable());
     }
 
     #[test]
