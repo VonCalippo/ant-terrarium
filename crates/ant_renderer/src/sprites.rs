@@ -1,7 +1,8 @@
 use bevy::prelude::*;
 use ant_simulation::snapshot::Snapshot;
 use crate::app::SimResource;
-use crate::assets::{self, CELL_SIZE, GRID_WIDTH, GRID_HEIGHT, QUEEN_COLOR};
+use crate::pixelart::PixelAssets;
+use crate::assets::{self, CELL_SIZE, GRID_WIDTH, GRID_HEIGHT};
 
 #[derive(Resource)]
 pub struct SimulationState {
@@ -30,9 +31,32 @@ pub struct QueenMarker;
 #[derive(Component)]
 pub struct GlassOverlay;
 
+#[derive(Component)]
+pub struct SkyBackground;
+
+pub fn setup_sky_background(
+    mut commands: Commands,
+    pixel_assets: Res<PixelAssets>,
+) {
+    let width_px = GRID_WIDTH as f32 * CELL_SIZE;
+    let height_px = GRID_HEIGHT as f32 * CELL_SIZE;
+
+    commands.spawn((
+        SkyBackground,
+        Sprite {
+            image: pixel_assets.sky_bg.clone(),
+            custom_size: Some(Vec2::new(width_px, height_px)),
+            color: Color::srgba(0.9, 0.9, 1.0, 0.3),
+            ..default()
+        },
+        Transform::from_xyz(width_px / 2.0, -height_px / 2.0, -1.0),
+    ));
+}
+
 pub fn setup_grid_sprites(
     mut commands: Commands,
     simulation: Res<SimResource>,
+    pixel_assets: Res<PixelAssets>,
 ) {
     let snap = Snapshot::from_simulation(&simulation);
 
@@ -44,29 +68,49 @@ pub fn setup_grid_sprites(
             let world_x = x as f32 * CELL_SIZE;
             let world_y = -(y as f32 * CELL_SIZE);
 
-            commands.spawn((
-                Sprite {
-                    color,
-                    custom_size: Some(Vec2::splat(CELL_SIZE)),
-                    ..default()
-                },
-                Transform::from_xyz(world_x, world_y, 0.0),
-                CellSprite { grid_x: x as u16, grid_y: y as u16 },
-            ));
+            let sprite_image = match cell.material {
+                ant_simulation::grid::Material::Egg => Some(pixel_assets.egg_sprite.clone()),
+                ant_simulation::grid::Material::Larva => Some(pixel_assets.larva_sprite.clone()),
+                ant_simulation::grid::Material::Fungus => Some(pixel_assets.fungus_sprite.clone()),
+                _ => None,
+            };
+
+            if let Some(image) = sprite_image {
+                commands.spawn((
+                    Sprite {
+                        image,
+                        custom_size: Some(Vec2::splat(CELL_SIZE)),
+                        ..default()
+                    },
+                    Transform::from_xyz(world_x, world_y, 0.5),
+                    CellSprite { grid_x: x as u16, grid_y: y as u16 },
+                ));
+            } else {
+                commands.spawn((
+                    Sprite {
+                        color,
+                        custom_size: Some(Vec2::splat(CELL_SIZE)),
+                        ..default()
+                    },
+                    Transform::from_xyz(world_x, world_y, 0.0),
+                    CellSprite { grid_x: x as u16, grid_y: y as u16 },
+                ));
+            }
         }
     }
 
-    let queen = simulation.grid.queen_position();
+    // Queen with pixel art sprite
+    let queen_pos = simulation.grid.queen_position();
     commands.spawn((
         Sprite {
-            color: QUEEN_COLOR,
-            custom_size: Some(Vec2::splat(CELL_SIZE)),
+            image: pixel_assets.queen_sprite.clone(),
+            custom_size: Some(Vec2::splat(CELL_SIZE * 1.5)),
             ..default()
         },
         Transform::from_xyz(
-            queen.x as f32 * CELL_SIZE,
-            -(queen.y as f32 * CELL_SIZE),
-            1.0,
+            queen_pos.x as f32 * CELL_SIZE,
+            -(queen_pos.y as f32 * CELL_SIZE),
+            2.0,
         ),
         QueenMarker,
     ));

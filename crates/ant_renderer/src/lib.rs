@@ -4,6 +4,7 @@ pub mod camera;
 pub mod sprites;
 pub mod hud;
 pub mod input;
+pub mod pixelart;
 pub mod widget;
 pub mod assets;
 

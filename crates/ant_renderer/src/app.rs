@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use ant_simulation::tick::Simulation;
 use crate::{
-    ants, widget,
+    ants, widget, pixelart,
     sprites::{self, SimulationState},
     input,
     hud::{self, HudState},
@@ -63,7 +63,9 @@ impl Plugin for TerrariumPlugin {
         app.insert_resource(input::InputState::default());
 
         app.add_systems(Startup, (
+            pixelart::setup_pixel_art,
             camera::setup_camera,
+            sprites::setup_sky_background,
             sprites::setup_grid_sprites,
             ants::spawn_ant_sprites,
             sprites::setup_glass_overlay,
