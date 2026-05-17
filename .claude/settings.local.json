@@ -37,7 +37,9 @@
       "Bash(rustup toolchain *)",
       "Bash(cargo check *)",
       "Bash(cargo test *)",
-      "Bash(cargo run *)"
+      "Bash(cargo run *)",
+      "Skill(superpowers:finishing-a-development-branch)",
+      "Bash(gh repo *)"
     ]
   }
 }

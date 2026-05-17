@@ -151,6 +151,6 @@ pub fn update_hud(
     }
 
     for mut text in worker_text.iter_mut() {
-        text.0 = "Workers: 0  |  Food: 0".to_string();
+        text.0 = format!("Workers: {}  |  Food: 0", simulation.ants.bodies.len());
     }
 }

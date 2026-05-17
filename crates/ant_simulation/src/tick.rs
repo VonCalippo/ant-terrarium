@@ -1,3 +1,4 @@
+use crate::ant::{AntState, AntEvent, perceive, update_needs, calculate_impulses, select_action, execute_action};
 use crate::grid::Grid;
 use crate::terrain::{DigState, TerrainEvent, process_digging, update_stability};
 
@@ -41,6 +42,8 @@ pub struct Simulation {
     pub speed: Speed,
     pub events: Vec<TerrainEvent>,
     pub pending_digs: Vec<DigState>,
+    pub ants: AntState,
+    pub ant_events: Vec<AntEvent>,
 }
 
 impl Simulation {
@@ -51,6 +54,8 @@ impl Simulation {
             speed: Speed::Normal,
             events: Vec::new(),
             pending_digs: Vec::new(),
+            ants: AntState::default(),
+            ant_events: Vec::new(),
         }
     }
 
@@ -61,18 +66,75 @@ impl Simulation {
             speed: Speed::Normal,
             events: Vec::new(),
             pending_digs: Vec::new(),
+            ants: AntState::default(),
+            ant_events: Vec::new(),
         }
+    }
+
+    pub fn spawn_initial_ants(&mut self, count: usize) {
+        self.ants.spawn_initial_ants(count, &self.grid);
+    }
+
+    pub fn tick_ants(&mut self) -> Vec<AntEvent> {
+        let mut events = Vec::new();
+
+        for i in 0..self.ants.bodies.len() {
+            let perception = perceive(&self.grid, self.ants.bodies[i].pos, self.ants.memories[i].home_position);
+            update_needs(&mut self.ants.brains[i], &self.ants.traits_vec[i], &perception);
+
+            let continue_action = self.ants.bodies[i].action_ticks > 0;
+            let new_events = execute_action(
+                &mut self.ants.bodies[i],
+                &mut self.ants.brains[i],
+                &mut self.ants.memories[i],
+                &mut self.grid,
+                Some(&self.ants.traits_vec[i]),
+            );
+            events.extend(new_events);
+
+            if continue_action {
+                continue;
+            }
+
+            // Choose new action if current one completed
+            if self.ants.bodies[i].action_ticks == 0 {
+                let impulses = calculate_impulses(
+                    &self.ants.brains[i],
+                    &self.ants.memories[i],
+                    &self.ants.traits_vec[i],
+                    &perception,
+                    &self.ants.bodies[i],
+                );
+                let action = select_action(&impulses, &self.ants.traits_vec[i]);
+                self.ants.bodies[i].current_action = action;
+                self.ants.bodies[i].action_ticks = 0;
+
+                let followup = execute_action(
+                    &mut self.ants.bodies[i],
+                    &mut self.ants.brains[i],
+                    &mut self.ants.memories[i],
+                    &mut self.grid,
+                    Some(&self.ants.traits_vec[i]),
+                );
+                events.extend(followup);
+            }
+        }
+
+        events
     }
 
     pub fn tick(&mut self) -> TickResult {
         self.tick += 1;
         self.events.clear();
+        self.ant_events.clear();
 
         let dig_events = process_digging(&mut self.grid, &mut self.pending_digs);
         let stability_events = update_stability(&mut self.grid);
+        let ant_events = self.tick_ants();
 
         self.events.extend(dig_events);
         self.events.extend(stability_events);
+        self.ant_events = ant_events;
 
         TickResult {
             tick: self.tick,

@@ -1,3 +1,4 @@
+pub mod ants;
 pub mod app;
 pub mod camera;
 pub mod sprites;

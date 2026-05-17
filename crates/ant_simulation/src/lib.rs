@@ -1,3 +1,4 @@
+pub mod ant;
 pub mod grid;
 pub mod terrain;
 pub mod tick;

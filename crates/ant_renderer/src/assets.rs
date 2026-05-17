@@ -21,3 +21,19 @@ pub fn material_color(material: ant_simulation::grid::Material) -> Color {
         ant_simulation::grid::Material::Larva => Color::srgb(1.0, 0.9, 0.7),
     }
 }
+
+pub fn ant_body_color(agitation: f32, carrying: Option<ant_simulation::ant::CarriedItem>) -> Color {
+    let base = Color::srgb(0.2, 0.15, 0.1);
+    let mut agitated = Color::srgb(0.35, 0.25, 0.15);
+    if let Some(item) = carrying {
+        agitated = agitated.mix(&ant_carrying_tint(item), 0.5);
+    }
+    base.mix(&agitated, (agitation + 0.2).min(1.0))
+}
+
+pub fn ant_carrying_tint(item: ant_simulation::ant::CarriedItem) -> Color {
+    match item {
+        ant_simulation::ant::CarriedItem::Dirt => Color::srgb(0.678, 0.545, 0.235),
+        ant_simulation::ant::CarriedItem::Food => Color::srgb(0.91, 0.75, 0.25),
+    }
+}

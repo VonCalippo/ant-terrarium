@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use ant_simulation::tick::Simulation;
 use crate::{
+    ants,
     sprites::{self, SimulationState},
     input,
     hud::{self, HudState},
@@ -30,17 +31,23 @@ impl SimResource {
         if let Ok(bytes) = std::fs::read(&path) {
             if let Ok(save) = ant_simulation::persistence::SaveFile::from_bytes(&bytes) {
                 info!("Loaded save from {:?}", path);
-                return SimResource(save.to_simulation());
+                let mut sim = SimResource(save.to_simulation());
+                if sim.ants.bodies.is_empty() {
+                    sim.spawn_initial_ants(5);
+                }
+                return sim;
             }
         }
 
         info!("No save found, creating fresh world");
-        SimResource(Simulation::from_grid(
+        let mut sim = SimResource(Simulation::from_grid(
             ant_simulation::grid::Grid::generate_initial_world(
                 crate::assets::GRID_WIDTH,
                 crate::assets::GRID_HEIGHT,
             )
-        ))
+        ));
+        sim.spawn_initial_ants(5);
+        sim
     }
 }
 
@@ -58,6 +65,7 @@ impl Plugin for TerrariumPlugin {
         app.add_systems(Startup, (
             camera::setup_camera,
             sprites::setup_grid_sprites,
+            ants::spawn_ant_sprites,
             sprites::setup_glass_overlay,
             hud::setup_hud,
         ));
@@ -67,6 +75,7 @@ impl Plugin for TerrariumPlugin {
             input::auto_save,
             sprites::tick_simulation,
             sprites::apply_snapshot,
+            ants::update_ant_sprites,
             camera::zoom_camera,
             camera::pan_camera,
             camera::keyboard_pan,

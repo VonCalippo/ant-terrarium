@@ -1,4 +1,5 @@
-use crate::grid::Material;
+use crate::ant::AntEvent;
+use crate::grid::{GridPos, Material, Direction};
 use crate::terrain::TerrainEvent;
 use crate::tick::Speed;
 
@@ -9,12 +10,25 @@ pub struct Snapshot {
     pub height: u16,
     pub cells: Vec<CellSnapshot>,
     pub events: Vec<TerrainEvent>,
+    pub ant_events: Vec<AntEvent>,
+    pub ants: Vec<AntSnapshot>,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct CellSnapshot {
     pub material: Material,
     pub stability: u8,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct AntSnapshot {
+    pub id: usize,
+    pub pos: GridPos,
+    pub direction: Direction,
+    pub carrying: Option<crate::ant::CarriedItem>,
+    pub agitation: f32,
+    pub action: crate::ant::Action,
+    pub stress: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -32,12 +46,26 @@ impl Snapshot {
             stability: c.stability,
         }).collect();
 
+        let ants: Vec<AntSnapshot> = sim.ants.bodies.iter().enumerate().map(|(i, body)| {
+            AntSnapshot {
+                id: i,
+                pos: body.pos,
+                direction: body.direction,
+                carrying: body.carrying,
+                agitation: sim.ants.brains.get(i).map(|b| b.agitation).unwrap_or(0.0),
+                action: body.current_action,
+                stress: sim.ants.brains.get(i).map(|b| b.stress).unwrap_or(0.0),
+            }
+        }).collect();
+
         Self {
             tick: sim.tick,
             width: sim.grid.width,
             height: sim.grid.height,
             cells,
             events: sim.events.clone(),
+            ant_events: sim.ant_events.clone(),
+            ants,
         }
     }
 }
