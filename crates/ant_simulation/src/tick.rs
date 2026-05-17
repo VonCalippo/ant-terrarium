@@ -1,5 +1,6 @@
 use crate::ant::{AntState, AntEvent, perceive, update_needs, calculate_impulses, select_action, execute_action};
 use crate::grid::Grid;
+use crate::queen::{AntAge, Queen, QueenEvent, LifeStage, tick_life_stages, tick_corpses};
 use crate::terrain::{DigState, TerrainEvent, process_digging, update_stability};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -43,23 +44,17 @@ pub struct Simulation {
     pub events: Vec<TerrainEvent>,
     pub pending_digs: Vec<DigState>,
     pub ants: AntState,
+    pub ant_ages: Vec<AntAge>,
     pub ant_events: Vec<AntEvent>,
+    pub queen: Queen,
+    pub queen_events: Vec<QueenEvent>,
+    pub life_stages: Vec<LifeStage>,
 }
 
 impl Simulation {
     pub fn new(width: u16, height: u16) -> Self {
-        Self {
-            grid: Grid::new(width, height),
-            tick: 0,
-            speed: Speed::Normal,
-            events: Vec::new(),
-            pending_digs: Vec::new(),
-            ants: AntState::default(),
-            ant_events: Vec::new(),
-        }
-    }
-
-    pub fn from_grid(grid: Grid) -> Self {
+        let grid = Grid::new(width, height);
+        let queen_pos = grid.queen_position();
         Self {
             grid,
             tick: 0,
@@ -67,12 +62,36 @@ impl Simulation {
             events: Vec::new(),
             pending_digs: Vec::new(),
             ants: AntState::default(),
+            ant_ages: Vec::new(),
             ant_events: Vec::new(),
+            queen: Queen::new(queen_pos),
+            queen_events: Vec::new(),
+            life_stages: Vec::new(),
+        }
+    }
+
+    pub fn from_grid(grid: Grid) -> Self {
+        let queen_pos = grid.queen_position();
+        Self {
+            grid,
+            tick: 0,
+            speed: Speed::Normal,
+            events: Vec::new(),
+            pending_digs: Vec::new(),
+            ants: AntState::default(),
+            ant_ages: Vec::new(),
+            ant_events: Vec::new(),
+            queen: Queen::new(queen_pos),
+            queen_events: Vec::new(),
+            life_stages: Vec::new(),
         }
     }
 
     pub fn spawn_initial_ants(&mut self, count: usize) {
         self.ants.spawn_initial_ants(count, &self.grid);
+        for _ in 0..count {
+            self.ant_ages.push(AntAge::new(&mut rand::thread_rng()));
+        }
     }
 
     pub fn tick_ants(&mut self) -> Vec<AntEvent> {
@@ -127,11 +146,62 @@ impl Simulation {
         self.tick += 1;
         self.events.clear();
         self.ant_events.clear();
+        self.queen_events.clear();
 
         self.grid.evaporate_pheromones();
+
+        // Queen tick
+        self.queen_events = self.queen.tick(&mut self.grid);
+
+        // Life stages
+        let life_events = tick_life_stages(&mut self.life_stages, &mut self.grid);
+        for event in &life_events {
+            if let crate::queen::LifeEvent::Hatched { pos } = event {
+                // Spawn new adult ant
+                self.ants.spawn(*pos, self.queen.pos, &mut rand::thread_rng());
+                self.ant_ages.push(AntAge::adult(0, &mut rand::thread_rng()));
+            }
+        }
+
+        // Corpses
+        tick_corpses(&mut self.grid);
+
+        // Ant aging & death
+        let mut deaths = Vec::new();
+        for i in 0..self.ant_ages.len() {
+            if self.ant_ages[i].tick() {
+                deaths.push(i);
+            }
+        }
+
+        // Process ant deaths
+        for i in deaths.into_iter().rev() {
+            if i < self.ants.bodies.len() {
+                let pos = self.ants.bodies[i].pos;
+                self.grid.set_material(pos, crate::grid::Material::OrganicWaste);
+                self.grid.deposit_pheromone(pos, crate::grid::PheromoneType::Death, 200);
+                self.ants.bodies.remove(i);
+                self.ants.brains.remove(i);
+                self.ants.memories.remove(i);
+                self.ants.traits_vec.remove(i);
+                self.ant_ages.remove(i);
+            }
+        }
+
         let dig_events = process_digging(&mut self.grid, &mut self.pending_digs);
         let stability_events = update_stability(&mut self.grid);
         let ant_events = self.tick_ants();
+
+        // Worker feeding queen: check if any ant delivered food near queen
+        for event in &ant_events {
+            if let AntEvent::DeliveredFood { pos } = event {
+                let dx = pos.x as i32 - self.queen.pos.x as i32;
+                let dy = pos.y as i32 - self.queen.pos.y as i32;
+                if dx.abs() <= 2 && dy.abs() <= 2 {
+                    self.queen.deliver_food();
+                }
+            }
+        }
 
         self.events.extend(dig_events);
         self.events.extend(stability_events);

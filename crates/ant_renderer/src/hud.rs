@@ -151,6 +151,12 @@ pub fn update_hud(
     }
 
     for mut text in worker_text.iter_mut() {
-        text.0 = format!("Workers: {}  |  Food: 0", simulation.ants.bodies.len());
+        let eggs = simulation.life_stages.iter().filter(|s| matches!(s.stage, ant_simulation::queen::Stage::Egg)).count();
+        let larvae = simulation.life_stages.iter().filter(|s| matches!(s.stage, ant_simulation::queen::Stage::Larva)).count();
+        let pupae = simulation.life_stages.iter().filter(|s| matches!(s.stage, ant_simulation::queen::Stage::Pupa)).count();
+        let queen_status = if simulation.queen.alive { "\u{25cf}" } else { "\u{2715}" };
+        text.0 = format!("Q:{} W:{} | E:{} L:{} P:{} | Food:{}",
+            queen_status, simulation.ants.bodies.len(),
+            eggs, larvae, pupae, simulation.queen.food_reserve);
     }
 }
