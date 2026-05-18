@@ -236,8 +236,19 @@ pub fn perceive(
     let mut queen_detected = false;
     let mut queen_dir = None;
 
+    // Check current cell for food/fungus
+    if let Some(cell) = grid.get(pos) {
+        pheromones[1][1] = cell.pheromones;
+        cells[1][1] = cell.material;
+        if cell.material == Material::Food || cell.material == Material::Fungus {
+            food_detected = true;
+            food_positions.push((0, 0));
+        }
+    }
+
     for dy in -1i8..=1 {
         for dx in -1i8..=1 {
+            if dx == 0 && dy == 0 { continue; }
             let sx = (dx + 1) as usize;
             let sy = (dy + 1) as usize;
             let nx = pos.x as i32 + dx as i32;
@@ -250,8 +261,6 @@ pub fn perceive(
             if let Some(cell) = grid.get(np) {
                 pheromones[sy][sx] = cell.pheromones;
                 cells[sy][sx] = cell.material;
-
-                if dx == 0 && dy == 0 { continue; }
 
                 match cell.material {
                     Material::Food | Material::Fungus => {
@@ -305,27 +314,36 @@ pub fn calculate_impulses(
     let mut impulses = Vec::new();
 
     if perception.food_detected && brain.hunger > 0.3 {
-        let w = if brain.hunger > 0.6 { 0.8 } else { 0.4 };
+        let w = if brain.hunger > 0.6 { 0.9 } else { 0.5 };
         impulses.push(Impulse { action: Action::CollectFood, weight: w });
     }
     if brain.hunger > 0.8 && !perception.food_detected {
         let dir = random_direction();
-        impulses.push(Impulse { action: Action::Move(dir), weight: 0.7 });
+        impulses.push(Impulse { action: Action::Move(dir), weight: 0.8 });
+    }
+    if brain.hunger > 0.5 && !perception.food_detected {
+        let dir = random_direction();
+        impulses.push(Impulse { action: Action::Move(dir), weight: 0.4 });
     }
     if body.carrying == Some(CarriedItem::Food) && perception.queen_detected {
         impulses.push(Impulse {
             action: Action::CarryFood { to: perception.queen_dir.map(|d| body.pos.neighbor(d).unwrap_or(body.pos)).unwrap_or(body.pos) },
-            weight: 0.9,
+            weight: 0.95,
         });
     }
     if body.carrying == Some(CarriedItem::Food) && !perception.queen_detected {
         if let Some(dir) = perception.queen_dir {
-            impulses.push(Impulse { action: Action::Move(dir), weight: 0.4 });
+            impulses.push(Impulse { action: Action::Move(dir), weight: 0.5 });
         }
     }
 
-    if brain.fatigue > 0.5 && !perception.danger_detected {
-        impulses.push(Impulse { action: Action::Rest, weight: brain.fatigue.min(0.8) });
+    if brain.fatigue > 0.7 && brain.hunger < 0.5 && !perception.danger_detected {
+        impulses.push(Impulse { action: Action::Rest, weight: 0.6 });
+    }
+
+    // Emergency: move if starving
+    if brain.hunger > 0.9 {
+        impulses.push(Impulse { action: Action::Move(random_direction()), weight: 0.95 });
     }
 
     if perception.danger_detected && brain.fear > 0.3 {
@@ -487,7 +505,32 @@ pub fn execute_action(
                 }
             }
         }
+        Action::Eat => {
+            brain.hunger = (brain.hunger - 0.5).max(0.0);
+            brain.stress = (brain.stress - 0.2).max(0.0);
+            // Eat from current cell if food/fungus there
+            if let Some(cell) = grid.get(body.pos) {
+                if cell.material == Material::Food || cell.material == Material::Fungus {
+                    grid.set_material(body.pos, Material::Air);
+                    brain.hunger = (brain.hunger - 0.3).max(0.0);
+                }
+            }
+            events.push(AntEvent::Ate { pos: body.pos });
+        }
         Action::CollectFood => {
+            // Check own cell first
+            if let Some(cell) = grid.get(body.pos) {
+                if cell.material == Material::Food || cell.material == Material::Fungus {
+                    let is_fungus = cell.material == Material::Fungus;
+                    grid.set_material(body.pos, Material::Air);
+                    body.carrying = Some(CarriedItem::Food);
+                    brain.hunger = if is_fungus { (brain.hunger - 0.2).max(0.0) } else { (brain.hunger - 0.3).max(0.0) };
+                    memory.recent_food.push(body.pos);
+                    if memory.recent_food.len() > 8 { memory.recent_food.remove(0); }
+                    events.push(AntEvent::CollectedFood { pos: body.pos });
+                    return events;
+                }
+            }
             for dir in &Direction::ALL {
                 if let Some(pos) = body.pos.neighbor(*dir) {
                     let is_food = grid.get(pos).map(|c| c.material == Material::Food).unwrap_or(false);
@@ -507,11 +550,6 @@ pub fn execute_action(
                     }
                 }
             }
-        }
-        Action::Eat => {
-            brain.hunger = (brain.hunger - 0.5).max(0.0);
-            brain.stress = (brain.stress - 0.2).max(0.0);
-            events.push(AntEvent::Ate { pos: body.pos });
         }
         Action::Rest => {
             brain.fatigue = (brain.fatigue - 0.3).max(0.0);

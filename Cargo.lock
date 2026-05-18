@@ -181,6 +181,7 @@ name = "ant_terrarium"
 version = "0.1.0"
 dependencies = [
  "ant_renderer",
+ "ant_simulation",
  "bevy",
 ]
 

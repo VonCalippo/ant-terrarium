@@ -241,6 +241,15 @@ impl Grid {
             }
         }
 
+        // Place food patches on surface
+        let center_x = width / 2;
+        for dx in -4i32..=4 {
+            let x = (center_x as i32 + dx).clamp(0, width as i32 - 1) as u16;
+            if surface_y > 0 {
+                grid.set_material(GridPos::new(x, surface_y - 1), Material::Food);
+            }
+        }
+
         grid
     }
 

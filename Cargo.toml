@@ -19,3 +19,4 @@ ant_renderer = { path = "crates/ant_renderer" }
 [dependencies]
 bevy.workspace = true
 ant_renderer.workspace = true
+ant_simulation.workspace = true

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Ant Colony Analysis</title>
+<style>body{background:#0a0a14;color:#ccc;font-family:monospace;margin:20px}
+h1{color:#e8c040}h2{color:#88aacc;margin-top:30px}
+.chart{background:#111122;border-radius:8px;padding:16px;margin:10px 0}
+canvas{width:100%%;max-width:900px}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+@media(max-width:700px){.grid{grid-template-columns:1fr}}
+</style></head><body>
+<h1>🐜 Ant Colony Analysis — 5000 ticks</h1>
+
+<div class="grid">
+<div class="chart"><h3>Population</h3><canvas id="ants"></canvas></div>
+<div class="chart"><h3>Queen Hunger & Stress</h3><canvas id="queen"></canvas></div>
+<div class="chart"><h3>Ant Needs (avg)</h3><canvas id="needs"></canvas></div>
+<div class="chart"><h3>Behaviors</h3><canvas id="behaviors"></canvas></div>
+<div class="chart"><h3>Pheromone Activity</h3><canvas id="pheromones"></canvas></div>
+<div class="chart"><h3>Life Stages</h3><canvas id="life"></canvas></div>
+</div>
+
+<div class="chart"><h3>Action Distribution</h3><canvas id="actions" style="height:200px"></canvas></div>
+
+<script>
+const ticks = [0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000, 3100, 3200, 3300, 3400, 3500, 3600, 3700, 3800, 3900, 4000, 4100, 4200, 4300, 4400, 4500, 4600, 4700, 4800, 4900];
+const ants = [5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5];
+const hunger = [0.003, 0.24300008, 0.36300012, 0.6030005, 0.86240137, 0.98060036, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
+const stress = [0.0, 0.0, 0.0, 0.0010440147, 0.03026039, 0.15913013, 0.38492286, 0.6572896, 0.8476011, 0.9297209, 0.99160117, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
+const explore = [0, 1, 0, 1, 4, 5, 5, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 5, 5, 5, 5, 4, 5, 5, 5, 5, 5, 5];
+const dig = [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+const foodph = [0, 0, 0, 0, 1, 26, 9, 22, 18, 16, 6, 13, 13, 22, 14, 12, 18, 18, 18, 18, 17, 29, 21, 28, 27, 8, 7, 36, 40, 33, 23, 15, 29, 15, 10, 19, 16, 12, 22, 23, 10, 15, 12, 20, 11, 28, 19, 30, 24, 19];
+const dangerph = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+const eggs = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+const larvae = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+const actionDist = [8, 227, 1, 0, 2, 10, 0, 0, 2, 0];
+const actionLabels = ["Idle", "Move", "Dig", "CarryDirt", "Collect", "CarryFood", "Eat", "Rest", "Groom", "Flee"];
+
+function lineChart(id, datasets) {
+    const canvas = document.getElementById(id);
+    const ctx = canvas.getContext('2d');
+    const w = canvas.parentElement.clientWidth - 32;
+    canvas.width = w; canvas.height = 180;
+    const h = 180; const pad = {t:10,r:10,b:30,l:50};
+    const pw = w - pad.l - pad.r; const ph = h - pad.t - pad.b;
+
+    let allMax = 0;
+    for(const ds of datasets) for(const v of ds.data) if(v>allMax) allMax=v;
+    if(allMax==0) allMax=1;
+
+    ctx.fillStyle='#111122'; ctx.fillRect(0,0,w,h);
+    // Grid
+    ctx.strokeStyle='#1a1a33'; ctx.lineWidth=1;
+    for(let i=0;i<=4;i++) {
+        const y = pad.t + ph * (1 - i/4);
+        ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(w-pad.r,y); ctx.stroke();
+        ctx.fillStyle='#555'; ctx.fillText(Math.round(allMax*i/4), 2, y+4);
+    }
+    // Lines
+    for(const ds of datasets) {
+        ctx.strokeStyle=ds.color; ctx.lineWidth=2; ctx.beginPath();
+        for(let i=0;i<ds.data.length;i++) {
+            const x = pad.l + (i/ds.data.length)*pw;
+            const y = pad.t + ph*(1 - ds.data[i]/allMax);
+            if(i==0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+        }
+        ctx.stroke();
+    }
+    // Legend
+    let lx=pad.l;
+    for(const ds of datasets) {
+        ctx.fillStyle=ds.color; ctx.fillRect(lx,h-16,12,10);
+        ctx.fillStyle='#ccc'; ctx.fillText(ds.label,lx+16,h-6);
+        lx+=ctx.measureText(ds.label).width+40;
+    }
+}
+
+function barChart(id, labels, data, color) {
+    const canvas = document.getElementById(id);
+    const ctx = canvas.getContext('2d');
+    const w = canvas.parentElement.clientWidth - 32;
+    canvas.width = w; canvas.height = 160;
+    const h = 160; const pad = {t:10,r:10,b:40,l:60};
+    const pw = w - pad.l - pad.r; const ph = h - pad.t - pad.b;
+    const max = Math.max(...data, 1);
+    const bw = pw / data.length * 0.7; const gap = pw / data.length * 0.3;
+
+    ctx.fillStyle='#111122'; ctx.fillRect(0,0,w,h);
+    for(let i=0;i<data.length;i++) {
+        const bh = (data[i]/max)*ph;
+        ctx.fillStyle=color; ctx.fillRect(pad.l + i*(bw+gap), pad.t+ph-bh, bw, bh);
+        ctx.fillStyle='#aaa';
+        ctx.save(); ctx.translate(pad.l+i*(bw+gap)+bw/2, h-4); ctx.rotate(-0.5);
+        ctx.fillText(labels[i],0,0); ctx.restore();
+    }
+}
+
+lineChart('ants', [{label:'Worker Ants',data:ants,color:'#e8c040'}]);
+lineChart('queen', [{label:'Hunger %',data:hunger.map(v=>v*100),color:'#e04040'},{label:'Stress %',data:stress.map(v=>v*100),color:'#8844ff'}]);
+lineChart('needs', [{label:'Avg Hunger %',data:hunger.map(v=>v*100),color:'#ff8844'},{label:'Avg Stress %',data:stress.map(v=>v*100),color:'#cc44ff'}]);
+lineChart('behaviors', [{label:'Exploring',data:explore,color:'#44aaff'},{label:'Digging',data:dig,color:'#e8c040'}]);
+lineChart('pheromones', [{label:'Food Pheromone',data:foodph,color:'#44dd44'},{label:'Danger Pheromone',data:dangerph,color:'#ff4444'}]);
+lineChart('life', [{label:'Eggs',data:eggs,color:'#ffffff'},{label:'Larvae',data:larvae,color:'#ffcc88'}]);
+barChart('actions', actionLabels, actionDist, '#88aacc');
+</script>
+<p style="color:#666;margin-top:20px">Generated by ant_terrarium analyze tool | 50 samples over 5000 ticks</p>
+</body></html>

@@ -102,7 +102,14 @@ impl Simulation {
             let perception = perceive(&self.grid, self.ants.bodies[i].pos, self.ants.memories[i].home_position);
             update_needs(&mut self.ants.brains[i], &self.ants.traits_vec[i], &perception);
 
-            let continue_action = self.ants.bodies[i].action_ticks > 0;
+            // Interrupt current action if critical need
+            if self.ants.bodies[i].action_ticks > 0
+                && (self.ants.brains[i].hunger > 0.85 || self.ants.brains[i].fear > 0.7)
+            {
+                self.ants.bodies[i].action_ticks = 0;
+                self.ants.bodies[i].current_action = crate::ant::Action::Idle;
+            }
+
             let new_events = execute_action(
                 &mut self.ants.bodies[i],
                 &mut self.ants.brains[i],
@@ -112,32 +119,29 @@ impl Simulation {
             );
             events.extend(new_events);
 
-            if continue_action {
+            if self.ants.bodies[i].action_ticks > 0 {
                 continue;
             }
 
-            // Choose new action if current one completed
-            if self.ants.bodies[i].action_ticks == 0 {
-                let impulses = calculate_impulses(
-                    &self.ants.brains[i],
-                    &self.ants.memories[i],
-                    &self.ants.traits_vec[i],
-                    &perception,
-                    &self.ants.bodies[i],
-                );
-                let action = select_action(&impulses, &self.ants.traits_vec[i]);
-                self.ants.bodies[i].current_action = action;
-                self.ants.bodies[i].action_ticks = 0;
+            // Choose new action
+            let impulses = calculate_impulses(
+                &self.ants.brains[i],
+                &self.ants.memories[i],
+                &self.ants.traits_vec[i],
+                &perception,
+                &self.ants.bodies[i],
+            );
+            let action = select_action(&impulses, &self.ants.traits_vec[i]);
+            self.ants.bodies[i].current_action = action;
 
-                let followup = execute_action(
-                    &mut self.ants.bodies[i],
-                    &mut self.ants.brains[i],
-                    &mut self.ants.memories[i],
-                    &mut self.grid,
-                    Some(&self.ants.traits_vec[i]),
-                );
-                events.extend(followup);
-            }
+            let followup = execute_action(
+                &mut self.ants.bodies[i],
+                &mut self.ants.brains[i],
+                &mut self.ants.memories[i],
+                &mut self.grid,
+                Some(&self.ants.traits_vec[i]),
+            );
+            events.extend(followup);
         }
 
         events
