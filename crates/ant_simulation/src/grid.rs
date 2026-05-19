@@ -245,9 +245,11 @@ impl Grid {
         let cx = width / 2;
         let cy = surface_y + 2;
 
-        // Entrance tunnel: vertical shaft from surface down to chamber
-        grid.set_material(GridPos::new(cx, surface_y), Material::Air);        // surface entrance
-        grid.set_material(GridPos::new(cx, surface_y + 1), Material::Air);    // tunnel
+        // Entrance tunnel: 2-wide vertical shaft from surface down to chamber
+        grid.set_material(GridPos::new(cx, surface_y), Material::Air);
+        grid.set_material(GridPos::new(cx - 1, surface_y), Material::Air);      // wider entrance
+        grid.set_material(GridPos::new(cx, surface_y + 1), Material::Air);
+        grid.set_material(GridPos::new(cx - 1, surface_y + 1), Material::Air);  // wider shaft
 
         // Chamber: 2x2 air pocket just for the queen
         grid.set_material(GridPos::new(cx, cy), Material::Air);

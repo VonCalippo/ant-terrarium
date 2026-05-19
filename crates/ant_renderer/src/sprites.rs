@@ -59,21 +59,37 @@ pub fn setup_grid_sprites(
             let cell = snap.cells[idx];
             let color = match cell.material {
                 ant_simulation::grid::Material::Air => {
-                    // Underground air near queen = nest chamber → warm tint
                     if y > surface_y {
+                        // Underground: dark tunnel void
                         let dist = ((x as i32 - queen_pos.x as i32).abs() + (y as i32 - queen_pos.y as i32).abs()) as f32;
                         if dist < 5.0 {
+                            // Near queen: warm chamber glow
                             let warmth = 1.0 - dist / 5.0;
-                            assets::sky_color(y as u16, snap.height)
-                                .mix(&Color::srgb(0.8, 0.6, 0.3), warmth * 0.4)
+                            Color::srgb(0.15, 0.10, 0.06)
+                                .mix(&Color::srgb(0.7, 0.5, 0.2), warmth * 0.5)
                         } else {
-                            assets::sky_color(y as u16, snap.height)
+                            // Tunnel: dark void
+                            Color::srgb(0.12, 0.08, 0.05)
                         }
                     } else {
+                        // Above ground: sky
                         assets::sky_color(y as u16, snap.height)
                     }
                 }
                 ant_simulation::grid::Material::Dirt if y == surface_y => assets::surface_color(),
+                // Dirt adjacent to air (tunnel walls): slightly lighter for contrast
+                ant_simulation::grid::Material::Dirt => {
+                    let mut base = assets::material_color(cell.material);
+                    // Check if adjacent to underground air
+                    let has_air_neighbor = (x > 0 && snap.cells.get((y as usize) * snap.width as usize + (x as usize - 1)).map(|c| c.material == ant_simulation::grid::Material::Air && y > surface_y).unwrap_or(false))
+                        || (x + 1 < snap.width && snap.cells.get((y as usize) * snap.width as usize + (x as usize + 1)).map(|c| c.material == ant_simulation::grid::Material::Air && y > surface_y).unwrap_or(false))
+                        || (y > 0 && snap.cells.get(((y as usize - 1) * snap.width as usize + x as usize)).map(|c| c.material == ant_simulation::grid::Material::Air && (y - 1) > surface_y).unwrap_or(false))
+                        || (y + 1 < snap.height && snap.cells.get(((y as usize + 1) * snap.width as usize + x as usize)).map(|c| c.material == ant_simulation::grid::Material::Air && (y + 1) > surface_y).unwrap_or(false));
+                    if has_air_neighbor {
+                        base = base.mix(&Color::srgb(0.55, 0.40, 0.22), 0.3);
+                    }
+                    base
+                }
                 _ => assets::material_color(cell.material),
             };
             let world_x = x as f32 * CELL_SIZE;
