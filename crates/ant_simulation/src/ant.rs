@@ -557,7 +557,8 @@ pub fn execute_action(
                                     memory.push_position(alt_pos);
                                     // Deposit FOOD trail if carrying food
                                     if body.carrying == Some(CarriedItem::Food) {
-                                        grid.deposit_pheromone(alt_pos, PheromoneType::Food, 30);
+                                        grid.deposit_pheromone(alt_pos, PheromoneType::Food, 40);
+                                        grid.deposit_pheromone(alt_pos, PheromoneType::Home, 30);
                                     }
                                     events.push(AntEvent::Moved { from: body.pos, to: alt_pos });
                                     return events;
@@ -569,7 +570,14 @@ pub fn execute_action(
                             body.direction = dir;
                             memory.push_position(new_pos);
                             if body.carrying == Some(CarriedItem::Food) {
-                                grid.deposit_pheromone(new_pos, PheromoneType::Food, 30);
+                                grid.deposit_pheromone(new_pos, PheromoneType::Food, 40);
+                                // Leave HOME trail when returning — critical for colony navigation
+                                grid.deposit_pheromone(new_pos, PheromoneType::Home, 30);
+                            }
+                            // When moving toward home, deposit HOME trail
+                            let toward_home = memory.home_position.y > body.pos.y;
+                            if toward_home {
+                                grid.deposit_pheromone(new_pos, PheromoneType::Home, 15);
                             }
                             events.push(AntEvent::Moved { from: body.pos, to: new_pos });
                         }

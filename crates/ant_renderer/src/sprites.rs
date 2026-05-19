@@ -51,13 +51,28 @@ pub fn setup_grid_sprites(
 ) {
     let snap = Snapshot::from_simulation(&simulation);
     let surface_y = simulation.grid.surface_y();
+    let queen_pos = simulation.grid.queen_position();
 
     for y in 0..snap.height {
         for x in 0..snap.width {
             let idx = y as usize * snap.width as usize + x as usize;
             let cell = snap.cells[idx];
             let color = match cell.material {
-                ant_simulation::grid::Material::Air => assets::sky_color(y as u16, snap.height),
+                ant_simulation::grid::Material::Air => {
+                    // Underground air near queen = nest chamber → warm tint
+                    if y > surface_y {
+                        let dist = ((x as i32 - queen_pos.x as i32).abs() + (y as i32 - queen_pos.y as i32).abs()) as f32;
+                        if dist < 5.0 {
+                            let warmth = 1.0 - dist / 5.0;
+                            assets::sky_color(y as u16, snap.height)
+                                .mix(&Color::srgb(0.8, 0.6, 0.3), warmth * 0.4)
+                        } else {
+                            assets::sky_color(y as u16, snap.height)
+                        }
+                    } else {
+                        assets::sky_color(y as u16, snap.height)
+                    }
+                }
                 ant_simulation::grid::Material::Dirt if y == surface_y => assets::surface_color(),
                 _ => assets::material_color(cell.material),
             };

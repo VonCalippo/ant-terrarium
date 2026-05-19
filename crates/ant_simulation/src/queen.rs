@@ -39,7 +39,7 @@ impl Queen {
 
         // Emit QUEEN pheromone and HOME pheromone
         grid.deposit_pheromone(self.pos, PheromoneType::Queen, 20);
-        grid.deposit_pheromone(self.pos, PheromoneType::Home, 10);
+        grid.deposit_pheromone(self.pos, PheromoneType::Home, 40);
 
         // Health
         if self.hunger > 0.9 || self.stress > 0.9 {
