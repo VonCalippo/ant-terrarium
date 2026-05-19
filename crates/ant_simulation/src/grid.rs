@@ -258,10 +258,11 @@ impl Grid {
         grid.set_material(GridPos::new(cx, surface_y + 1), Material::Air);
         grid.set_material(GridPos::new(cx, surface_y), Material::Air);
 
-        // Food scattered across the surface
-        for dx in -15i32..=15 {
+        // Food patches near the nest entrance (easy to find)
+        let food_spots = [-3, -2, -1, 1, 2, 3, 5, 6, 8, 9, -5, -6, -8, -9];
+        for &dx in &food_spots {
             let x = (cx as i32 + dx).clamp(0, width as i32 - 1) as u16;
-            if surface_y > 0 && dx.abs() % 3 != 0 { // not every cell, small gaps
+            if surface_y > 0 {
                 grid.set_material(GridPos::new(x, surface_y - 1), Material::Food);
             }
         }
@@ -503,10 +504,11 @@ mod tests {
         assert_eq!(grid.height, 96);
         assert_eq!(grid.get(GridPos::new(64, 0)).unwrap().material, Material::Air);
         let sy = grid.surface_y();
-        assert_eq!(grid.get(GridPos::new(64, sy)).unwrap().material, Material::Dirt);
+        // (64, sy) is the entrance tunnel — should be Air now
+        assert_eq!(grid.get(GridPos::new(64, sy)).unwrap().material, Material::Air);
         assert_eq!(grid.get(GridPos::new(64, 95)).unwrap().material, Material::Stone);
         let qpos = grid.queen_position();
         assert_eq!(qpos.x, 64);
-        assert_eq!(qpos.y, sy);
+        assert_eq!(qpos.y, sy + 2);
     }
 }

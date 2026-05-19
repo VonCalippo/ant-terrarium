@@ -16,18 +16,18 @@ impl Speed {
     pub fn tick_interval_ms(self) -> Option<u64> {
         match self {
             Speed::Paused => None,
-            Speed::Normal => Some(100),
-            Speed::Fast => Some(50),
-            Speed::Fastest => Some(16),
+            Speed::Normal => Some(16),   // ~60 ticks/sec
+            Speed::Fast => Some(8),      // ~120 ticks/sec
+            Speed::Fastest => Some(2),   // ~500 ticks/sec
         }
     }
 
-    pub fn ticks_per_second(self) -> u8 {
+    pub fn ticks_per_second(self) -> u16 {
         match self {
             Speed::Paused => 0,
-            Speed::Normal => 10,
-            Speed::Fast => 20,
-            Speed::Fastest => 60,
+            Speed::Normal => 60,
+            Speed::Fast => 120,
+            Speed::Fastest => 500,
         }
     }
 }
@@ -176,7 +176,10 @@ impl Simulation {
         self.queen_events.clear();
 
         self.grid.evaporate_pheromones();
-        tick_ecology(&mut self.grid);
+        // Ecology is expensive — run every 10 ticks
+        if self.tick % 10 == 0 {
+            tick_ecology(&mut self.grid);
+        }
 
         // Queen tick
         self.queen_events = self.queen.tick(&mut self.grid);
@@ -261,17 +264,17 @@ mod tests {
     #[test]
     fn test_speed_tick_interval() {
         assert_eq!(Speed::Paused.tick_interval_ms(), None);
-        assert_eq!(Speed::Normal.tick_interval_ms(), Some(100));
-        assert_eq!(Speed::Fast.tick_interval_ms(), Some(50));
-        assert_eq!(Speed::Fastest.tick_interval_ms(), Some(16));
+        assert_eq!(Speed::Normal.tick_interval_ms(), Some(16));
+        assert_eq!(Speed::Fast.tick_interval_ms(), Some(8));
+        assert_eq!(Speed::Fastest.tick_interval_ms(), Some(2));
     }
 
     #[test]
     fn test_speed_ticks_per_second() {
         assert_eq!(Speed::Paused.ticks_per_second(), 0);
-        assert_eq!(Speed::Normal.ticks_per_second(), 10);
-        assert_eq!(Speed::Fast.ticks_per_second(), 20);
-        assert_eq!(Speed::Fastest.ticks_per_second(), 60);
+        assert_eq!(Speed::Normal.ticks_per_second(), 60);
+        assert_eq!(Speed::Fast.ticks_per_second(), 120);
+        assert_eq!(Speed::Fastest.ticks_per_second(), 500);
     }
 
     #[test]
@@ -305,7 +308,7 @@ mod tests {
         let mut sim = Simulation::new(10, 10);
         sim.set_speed(Speed::Fast);
         assert_eq!(sim.speed, Speed::Fast);
-        assert_eq!(sim.tick_interval_ms(), Some(50));
+        assert_eq!(sim.tick_interval_ms(), Some(8));
     }
 
     #[test]

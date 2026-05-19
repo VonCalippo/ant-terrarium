@@ -16,7 +16,7 @@ impl Default for SimulationState {
     fn default() -> Self {
         Self {
             snapshot: None,
-            tick_timer: Timer::from_seconds(0.1, TimerMode::Repeating),
+            tick_timer: Timer::from_seconds(0.016, TimerMode::Repeating),
         }
     }
 }
