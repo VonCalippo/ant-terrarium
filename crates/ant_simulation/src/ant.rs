@@ -20,8 +20,8 @@ pub enum Action {
 impl Action {
     pub fn base_ticks(self) -> u8 {
         match self {
-            Action::Move(_) => 0,
-            Action::Dig(_) => 7,
+            Action::Move(_) => 1,
+            Action::Dig(_) => 3,
             Action::CollectFood => 3,
             Action::Eat => 5,
             Action::Rest => 10,
@@ -306,7 +306,7 @@ pub fn perceive(
 
 pub fn calculate_impulses(
     brain: &AntBrain,
-    _memory: &AntMemory,
+    memory: &AntMemory,
     traits: &AntTraits,
     perception: &LocalPerception,
     body: &AntBody,
@@ -318,22 +318,53 @@ pub fn calculate_impulses(
         impulses.push(Impulse { action: Action::CollectFood, weight: w });
     }
     if brain.hunger > 0.8 && !perception.food_detected {
-        let dir = random_direction();
+        // If underground, go up to surface to find food
+        let dir = if perception.cells[1][1] != Material::Air || perception.cells[0][1] == Material::Dirt {
+            Direction::N // Move up toward surface
+        } else {
+            random_direction()
+        };
         impulses.push(Impulse { action: Action::Move(dir), weight: 0.8 });
     }
     if brain.hunger > 0.5 && !perception.food_detected {
         let dir = random_direction();
         impulses.push(Impulse { action: Action::Move(dir), weight: 0.4 });
     }
-    if body.carrying == Some(CarriedItem::Food) && perception.queen_detected {
-        impulses.push(Impulse {
-            action: Action::CarryFood { to: perception.queen_dir.map(|d| body.pos.neighbor(d).unwrap_or(body.pos)).unwrap_or(body.pos) },
-            weight: 0.95,
-        });
+    // If hungry and underground, go up to surface
+    if brain.hunger > 0.6 && perception.cells[0][1] != Material::Air {
+        // There's dirt above us — dig up toward surface
+        if perception.dirt_adjacent.contains(&Direction::N) {
+            impulses.push(Impulse { action: Action::Dig(Direction::N), weight: 0.7 + brain.hunger * 0.2 });
+        } else {
+            impulses.push(Impulse { action: Action::Move(Direction::N), weight: 0.6 });
+        }
     }
-    if body.carrying == Some(CarriedItem::Food) && !perception.queen_detected {
-        if let Some(dir) = perception.queen_dir {
-            impulses.push(Impulse { action: Action::Move(dir), weight: 0.5 });
+    // Carrying food: take it to the nest (queen/home position)
+    if body.carrying == Some(CarriedItem::Food) {
+        if perception.queen_detected {
+            // Deliver to queen/nest
+            impulses.push(Impulse {
+                action: Action::CarryFood { to: perception.queen_dir.map(|d| body.pos.neighbor(d).unwrap_or(body.pos)).unwrap_or(body.pos) },
+                weight: 0.95,
+            });
+        } else {
+            // Navigate toward home using memory
+            let dx = memory.home_position.x as i32 - body.pos.x as i32;
+            let dy = memory.home_position.y as i32 - body.pos.y as i32;
+            let dir = approx_direction(dx, dy);
+            impulses.push(Impulse { action: Action::Move(dir), weight: 0.8 });
+        }
+    }
+
+    // If hungry and near home, eat carried food or stored food
+    if brain.hunger > 0.5 && body.carrying == Some(CarriedItem::Food) {
+        // Check if underground (safe to eat)
+        if perception.cells[1][1] == Material::Dirt || perception.cells[1][1] == Material::Air {
+            let below = perception.cells[2][1]; // cell below
+            if below == Material::Dirt || below == Material::Stone {
+                // Underground: eat here
+                impulses.push(Impulse { action: Action::Eat, weight: brain.hunger * 0.9 });
+            }
         }
     }
 
@@ -353,18 +384,37 @@ pub fn calculate_impulses(
         }
     }
 
-    if brain.exploration_drive > 0.6 && matches!(body.current_action, Action::Idle) {
-        let w = traits.curiosity * 0.6;
+    // Exploration: move if idle and not urgent needs
+    if matches!(body.current_action, Action::Idle) && brain.hunger < 0.7 && brain.stress < 0.5 {
+        let w = traits.curiosity * 0.3;
         impulses.push(Impulse { action: Action::Move(random_direction()), weight: w });
     }
 
-    if brain.maintenance_drive > 0.5 && !perception.dirt_adjacent.is_empty() {
-        let dir = perception.dirt_adjacent[0];
-        impulses.push(Impulse { action: Action::Dig(dir), weight: 0.2 + traits.efficiency * 0.5 });
+    // Thigmotaxis: prefer moving toward dirt if exposed (ants hug walls)
+    if perception.cells[1][1] == Material::Air && !perception.dirt_adjacent.is_empty() {
+        impulses.push(Impulse { action: Action::Move(perception.dirt_adjacent[0]), weight: 0.3 });
     }
 
+    // ── DIGGING impulses ──
+    // Real ants dig for two main reasons: safety (thigmotaxis) and expansion
+    if !perception.dirt_adjacent.is_empty() {
+        let dir = perception.dirt_adjacent[0];
+
+        // Primary driver: if exposed (in air), dig toward nearest dirt
+        if perception.cells[1][1] == Material::Air {
+            impulses.push(Impulse { action: Action::Dig(dir), weight: 0.85 });
+        }
+
+        // If already in dirt, dig to expand tunnels
+        if matches!(perception.cells[1][1], Material::Dirt | Material::LooseDirt | Material::WetDirt) {
+            impulses.push(Impulse { action: Action::Dig(dir), weight: 0.5 + brain.maintenance_drive * 0.3 });
+        }
+    }
+
+    // Carrying dirt: find a place to dump
     if body.carrying == Some(CarriedItem::Dirt) {
-        impulses.push(Impulse { action: Action::CarryDirt { to: body.pos }, weight: 0.6 });
+        // Dump in nearest air cell (creates natural dumping areas)
+        impulses.push(Impulse { action: Action::CarryDirt { to: body.pos }, weight: 0.8 });
     }
 
     if brain.stress > 0.7 {
@@ -506,49 +556,40 @@ pub fn execute_action(
             }
         }
         Action::Eat => {
-            brain.hunger = (brain.hunger - 0.5).max(0.0);
-            brain.stress = (brain.stress - 0.2).max(0.0);
-            // Eat from current cell if food/fungus there
-            if let Some(cell) = grid.get(body.pos) {
-                if cell.material == Material::Food || cell.material == Material::Fungus {
-                    grid.set_material(body.pos, Material::Air);
-                    brain.hunger = (brain.hunger - 0.3).max(0.0);
-                }
+            // Eat from carried food
+            if body.carrying == Some(CarriedItem::Food) {
+                body.carrying = None;
+                brain.hunger = (brain.hunger - 0.5).max(0.0);
+                brain.stress = (brain.stress - 0.2).max(0.0);
+                events.push(AntEvent::Ate { pos: body.pos });
             }
-            events.push(AntEvent::Ate { pos: body.pos });
         }
         Action::CollectFood => {
-            // Check own cell first
+            // Check own cell first, then adjacent
+            let mut found = false;
+            let mut food_pos = body.pos;
             if let Some(cell) = grid.get(body.pos) {
                 if cell.material == Material::Food || cell.material == Material::Fungus {
-                    let is_fungus = cell.material == Material::Fungus;
-                    grid.set_material(body.pos, Material::Air);
-                    body.carrying = Some(CarriedItem::Food);
-                    brain.hunger = if is_fungus { (brain.hunger - 0.2).max(0.0) } else { (brain.hunger - 0.3).max(0.0) };
-                    memory.recent_food.push(body.pos);
-                    if memory.recent_food.len() > 8 { memory.recent_food.remove(0); }
-                    events.push(AntEvent::CollectedFood { pos: body.pos });
-                    return events;
+                    found = true;
                 }
             }
-            for dir in &Direction::ALL {
-                if let Some(pos) = body.pos.neighbor(*dir) {
-                    let is_food = grid.get(pos).map(|c| c.material == Material::Food).unwrap_or(false);
-                    let is_fungus = grid.get(pos).map(|c| c.material == Material::Fungus).unwrap_or(false);
-                    if is_food || is_fungus {
-                        grid.set_material(pos, Material::Air);
-                        body.carrying = Some(CarriedItem::Food);
-                        brain.hunger = if is_fungus {
-                            (brain.hunger - 0.2).max(0.0)
-                        } else {
-                            (brain.hunger - 0.3).max(0.0)
-                        };
-                        memory.recent_food.push(pos);
-                        if memory.recent_food.len() > 8 { memory.recent_food.remove(0); }
-                        events.push(AntEvent::CollectedFood { pos });
-                        break;
+            if !found {
+                for dir in &Direction::ALL {
+                    if let Some(pos) = body.pos.neighbor(*dir) {
+                        if grid.get(pos).map(|c| c.material == Material::Food || c.material == Material::Fungus).unwrap_or(false) {
+                            food_pos = pos;
+                            found = true;
+                            break;
+                        }
                     }
                 }
+            }
+            if found {
+                grid.set_material(food_pos, Material::Air);
+                body.carrying = Some(CarriedItem::Food);
+                memory.recent_food.push(food_pos);
+                if memory.recent_food.len() > 8 { memory.recent_food.remove(0); }
+                events.push(AntEvent::CollectedFood { pos: food_pos });
             }
         }
         Action::Rest => {
@@ -623,7 +664,38 @@ pub fn update_needs(brain: &mut AntBrain, traits: &AntTraits, perception: &Local
 
     brain.agitation = (brain.stress * 0.5 + brain.hunger * 0.3 + brain.fear * 0.2).clamp(0.0, 1.0);
     brain.social_drive = (brain.social_drive + (0.5 - brain.social_drive) * 0.01).clamp(0.0, 1.0);
-    brain.maintenance_drive = (brain.maintenance_drive + 0.001).min(1.0);
+    brain.maintenance_drive = (brain.maintenance_drive + 0.005).min(1.0);
+
+    // Exposure stress: ants on surface feel unsafe
+    // Surface = Air cells at or above surface_y = vulnerable to predators/weather
+    // Check if ant is exposed on surface vs underground
+    if perception.cells[1][1] == Material::Air {
+        // Count dirt below — if surrounded by air, we're exposed
+        let mut dirt_below = 0;
+        for dy in 0..=1 {
+            for dx in -1i8..=1 {
+                let sx = (dx + 1) as usize;
+                let sy = (dy + 1) as usize;
+                if sy < 3 && sx < 3 && perception.cells[sy][sx] == Material::Dirt {
+                    dirt_below += 1;
+                }
+            }
+        }
+        if dirt_below <= 2 {
+            // Exposed: stress + digging drive
+            brain.stress = (brain.stress + 0.003).min(1.0);
+            brain.maintenance_drive = (brain.maintenance_drive + 0.01).min(1.0);
+        } else {
+            // Underground or sheltered: feel safe
+            brain.stress = (brain.stress - 0.005).max(0.0);
+        }
+    } else if perception.cells[1][1] == Material::Dirt
+        || perception.cells[1][1] == Material::LooseDirt
+        || perception.cells[1][1] == Material::WetDirt
+    {
+        // Inside earth: safe
+        brain.stress = (brain.stress - 0.01).max(0.0);
+    }
 
     // Pheromone effects
     let q_strength = perception.pheromones[1][1].queen as f32 / 255.0;
@@ -695,12 +767,11 @@ impl AntState {
 
     pub fn spawn_initial_ants(&mut self, count: usize, grid: &Grid) {
         let home = grid.queen_position();
-        let surface_y = grid.surface_y();
         let mut rng = rand::thread_rng();
+        // Spawn ants inside the queen's chamber (near queen position)
         for _ in 0..count {
-            let x = (home.x as i32 + rng.gen_range(-4..=4) as i32).clamp(0, grid.width as i32 - 1) as u16;
-            // Spawn on air cell just above surface so ant can walk on dirt
-            let y = if surface_y > 0 { surface_y - 1 } else { 0 };
+            let x = (home.x as i32 + rng.gen_range(-1..=1) as i32).clamp(0, grid.width as i32 - 1) as u16;
+            let y = (home.y as i32 + rng.gen_range(0..=1) as i32).clamp(0, grid.height as i32 - 1) as u16;
             self.spawn(GridPos::new(x, y), home, &mut rng);
         }
     }
@@ -714,8 +785,8 @@ mod tests {
 
     #[test]
     fn test_action_base_ticks() {
-        assert_eq!(Action::Move(Direction::N).base_ticks(), 0);
-        assert_eq!(Action::Dig(Direction::S).base_ticks(), 7);
+        assert_eq!(Action::Move(Direction::N).base_ticks(), 1);
+        assert_eq!(Action::Dig(Direction::S).base_ticks(), 3);
         assert_eq!(Action::Rest.base_ticks(), 10);
         assert_eq!(Action::Eat.base_ticks(), 5);
         assert_eq!(Action::Idle.base_ticks(), 1);

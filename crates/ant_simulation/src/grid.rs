@@ -241,11 +241,27 @@ impl Grid {
             }
         }
 
-        // Place food patches on surface
-        let center_x = width / 2;
-        for dx in -4i32..=4 {
-            let x = (center_x as i32 + dx).clamp(0, width as i32 - 1) as u16;
-            if surface_y > 0 {
+        // Queen chamber + entrance tunnel
+        let cx = width / 2;
+        let cy = surface_y + 2;
+
+        // Entrance tunnel: vertical shaft from surface down to chamber
+        grid.set_material(GridPos::new(cx, surface_y), Material::Air);        // surface entrance
+        grid.set_material(GridPos::new(cx, surface_y + 1), Material::Air);    // tunnel
+
+        // Chamber: 2x2 air pocket just for the queen
+        grid.set_material(GridPos::new(cx, cy), Material::Air);
+        grid.set_material(GridPos::new(cx, cy + 1), Material::Air);
+        grid.set_material(GridPos::new(cx + 1, cy), Material::Air);
+        grid.set_material(GridPos::new(cx + 1, cy + 1), Material::Air);
+        // Entrance tunnel from chamber to surface
+        grid.set_material(GridPos::new(cx, surface_y + 1), Material::Air);
+        grid.set_material(GridPos::new(cx, surface_y), Material::Air);
+
+        // Food scattered across the surface
+        for dx in -15i32..=15 {
+            let x = (cx as i32 + dx).clamp(0, width as i32 - 1) as u16;
+            if surface_y > 0 && dx.abs() % 3 != 0 { // not every cell, small gaps
                 grid.set_material(GridPos::new(x, surface_y - 1), Material::Food);
             }
         }
@@ -254,7 +270,8 @@ impl Grid {
     }
 
     pub fn queen_position(&self) -> GridPos {
-        let y = self.surface_y();
+        // Queen in the pre-dug chamber, 2 rows below surface
+        let y = self.surface_y() + 2;
         GridPos::new(self.width / 2, y)
     }
 
