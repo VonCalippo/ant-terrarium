@@ -264,7 +264,8 @@ fn phero_color(ptype: u8, s: u8) -> Color {
         3 => Color::srgb(0.7, 0.6 + v * 0.3, 0.1),       // Dig = yellow
         4 => Color::srgb(0.9, 0.75 + v * 0.2, 0.15),     // Queen = gold
         5 => Color::srgb(0.5, 0.05, 0.25 + v * 0.3),     // Death = dark purple
-        6 => Color::srgb(0.35 + v * 0.2, 0.25, 0.15),    // Waste = brown
+        6 => Color::srgb(0.4 + v * 0.2, 0.3, 0.18),       // Waste = brown
+        7 => Color::srgb(1.0, 0.5 + v * 0.3, 0.1),         // Recruitment = orange
         _ => Color::WHITE,
     }
 }

@@ -1,0 +1,83 @@
+
+ORGANIZZAZIONE DI UN FORMICAIO
+Guida tecnica e biologica per allenare un simulatore di colonia di formiche
+
+Una colonia di formiche è un sistema biologico decentralizzato composto da migliaia o milioni di individui relativamente semplici che, attraverso regole locali e comunicazione indiretta, producono comportamenti collettivi estremamente complessi.
+
+CONTENUTI PRINCIPALI
+- Struttura sociale della colonia
+- Ruolo della regina
+- Caste e specializzazioni
+- Comunicazione tramite feromoni
+- Costruzione del formicaio
+- Ricerca del cibo
+- Difesa e guerra
+- Sistemi emergenti
+- AI decentralizzata
+- Modelli per simulazione
+
+REGINA
+La regina serve principalmente alla riproduzione.
+Non controlla direttamente la colonia.
+Produce feromoni che regolano il comportamento collettivo.
+
+OPERAIE
+Le operaie cambiano ruolo dinamicamente in base ai bisogni della colonia:
+- nurse
+- forager
+- builder
+- soldier
+- waste worker
+
+FEROMONI
+Le formiche comunicano tramite segnali chimici:
+- trail pheromone
+- alarm pheromone
+- recruitment pheromone
+- queen pheromone
+- death pheromone
+
+STIGMERGIA
+Le formiche coordinano il lavoro modificando l’ambiente.
+Non esiste un piano centrale.
+
+FORMICAIO
+Componenti principali:
+- tunnel
+- nursery
+- camere cibo
+- camere rifiuti
+- camera regina
+
+RICERCA DEL CIBO
+1. esplorazione casuale
+2. scoperta
+3. ritorno al nido
+4. deposito feromoni
+5. reclutamento
+6. sfruttamento del percorso
+
+AI PER SIMULAZIONE
+Ogni formica può avere:
+- posizione
+- energia
+- età
+- ruolo
+- salute
+- sensibilità ai feromoni
+- memoria limitata
+- stato corrente
+
+STATI POSSIBILI
+- idle
+- searching_food
+- carrying_food
+- feeding_larvae
+- digging
+- fighting
+- fleeing
+- cleaning
+
+CONCETTO CHIAVE
+La colonia è un cervello distribuito.
+L’intelligenza emerge dall’interazione di agenti semplici.

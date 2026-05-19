@@ -49,9 +49,9 @@ impl Snapshot {
     pub fn from_simulation(sim: &crate::tick::Simulation) -> Self {
         let cells: Vec<CellSnapshot> = sim.grid.cells.iter().map(|c| {
             let p = c.pheromones;
-            let types: [(u8, u8); 7] = [
+            let types: [(u8, u8); 8] = [
                 (0, p.food), (1, p.home), (2, p.danger), (3, p.dig),
-                (4, p.queen), (5, p.death), (6, p.waste),
+                (4, p.queen), (5, p.death), (6, p.waste), (7, p.recruitment),
             ];
             let max = types.iter().max_by_key(|(_, v)| *v).copied().unwrap_or((0, 0));
             CellSnapshot {

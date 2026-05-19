@@ -53,17 +53,18 @@ pub struct PheromoneLayer {
     pub queen: u8,
     pub death: u8,
     pub waste: u8,
+    pub recruitment: u8,
 }
 
 impl Default for PheromoneLayer {
     fn default() -> Self {
-        Self { food: 0, home: 0, danger: 0, dig: 0, queen: 0, death: 0, waste: 0 }
+        Self { food: 0, home: 0, danger: 0, dig: 0, queen: 0, death: 0, waste: 0, recruitment: 0 }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PheromoneType {
-    Food, Home, Danger, Dig, Queen, Death, Waste,
+    Food, Home, Danger, Dig, Queen, Death, Waste, Recruitment,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -288,6 +289,7 @@ impl Grid {
             cell.pheromones.queen = cell.pheromones.queen.saturating_sub(RATE);
             cell.pheromones.death = cell.pheromones.death.saturating_sub(RATE);
             cell.pheromones.waste = cell.pheromones.waste.saturating_sub(RATE);
+            cell.pheromones.recruitment = cell.pheromones.recruitment.saturating_sub(RATE);
         }
     }
 
@@ -301,6 +303,7 @@ impl Grid {
                 PheromoneType::Queen => &mut cell.pheromones.queen,
                 PheromoneType::Death => &mut cell.pheromones.death,
                 PheromoneType::Waste => &mut cell.pheromones.waste,
+                PheromoneType::Recruitment => &mut cell.pheromones.recruitment,
             };
             *target = target.saturating_add(amount);
         }
@@ -315,6 +318,7 @@ impl Grid {
             PheromoneType::Queen => c.pheromones.queen,
             PheromoneType::Death => c.pheromones.death,
             PheromoneType::Waste => c.pheromones.waste,
+            PheromoneType::Recruitment => c.pheromones.recruitment,
         }).unwrap_or(0)
     }
 }

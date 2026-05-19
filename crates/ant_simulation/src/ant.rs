@@ -1,6 +1,51 @@
 use rand::Rng;
 use crate::grid::{Grid, GridPos, Direction, Material, PheromoneLayer, PheromoneType};
 
+// ── Roles ──
+// From "organizzazione_formicaio.txt": operaie cambiano ruolo dinamicamente
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Role {
+    Forager,      // cerca cibo, deposita trail, esplora
+    Builder,      // scava tunnel, espande camere, trasporta terra
+    Nurse,        // sta vicino alla regina, cura larve, pulisce
+    WasteWorker,  // rimuove rifiuti e cadaveri, pulisce
+}
+
+impl Role {
+    pub fn next(self, signal: &ColonySignal) -> Role {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+
+        // Dynamic role switching based on colony needs
+        // Food scarcity → more foragers needed
+        if signal.food_scarcity > 0.7 && rng.gen::<f32>() < signal.food_scarcity * 0.3 {
+            return Role::Forager;
+        }
+        // Crowding → more builders needed
+        if signal.crowding > 0.5 && rng.gen::<f32>() < signal.crowding * 0.3 {
+            return Role::Builder;
+        }
+        // Queen distress → more nurses needed
+        if signal.queen_distress > 0.5 && rng.gen::<f32>() < signal.queen_distress * 0.3 {
+            return Role::Nurse;
+        }
+
+        // Occasionally switch role naturally
+        if rng.gen_range(0..200) == 0 {
+            let roles = [Role::Forager, Role::Builder, Role::Nurse, Role::WasteWorker];
+            return roles[rng.gen_range(0..4)];
+        }
+
+        match self {
+            Role::Forager => Role::Forager,
+            Role::Builder => Role::Builder,
+            Role::Nurse => Role::Nurse,
+            Role::WasteWorker => Role::WasteWorker,
+        }
+    }
+}
+
 // ── Actions ──
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -50,16 +95,20 @@ pub struct AntBody {
     pub current_action: Action,
     pub action_ticks: u8,
     pub carrying: Option<CarriedItem>,
+    pub role: Role,
 }
 
 impl AntBody {
     pub fn new(pos: GridPos) -> Self {
+        let roles = [Role::Forager, Role::Forager, Role::Builder, Role::Nurse];
+        let mut rng = rand::thread_rng();
         Self {
             pos,
             direction: Direction::S,
             current_action: Action::Idle,
             action_ticks: 0,
             carrying: None,
+            role: roles[rng.gen_range(0..4)],
         }
     }
 
@@ -196,6 +245,7 @@ impl LocalPerception {
                 PheromoneType::Queen => l.queen,
                 PheromoneType::Death => l.death,
                 PheromoneType::Waste => l.waste,
+                PheromoneType::Recruitment => l.recruitment,
             }
         };
         let center_val = get(&self.pheromones[1][1]);
@@ -446,6 +496,55 @@ pub fn calculate_impulses(
 
     if brain.stress > 0.7 {
         impulses.push(Impulse { action: Action::Groom, weight: 0.5 });
+    }
+
+    // ── Role-based behavior modulation ──
+    match body.role {
+        Role::Forager => {
+            // Foragers: stronger response to food, explore more
+            if brain.hunger > 0.5 {
+                impulses.iter_mut().for_each(|imp| {
+                    if matches!(imp.action, Action::Move(_)) { imp.weight += 0.1; }
+                    if matches!(imp.action, Action::CollectFood) { imp.weight += 0.15; }
+                });
+            }
+            // Deposit recruitment pheromone when carrying food
+            if body.carrying == Some(CarriedItem::Food) {
+                // Will be handled in execute_action — forager deposits recruitment near nest
+            }
+        }
+        Role::Builder => {
+            // Builders: stronger digging, more maintenance
+            impulses.iter_mut().for_each(|imp| {
+                if matches!(imp.action, Action::Dig(_)) { imp.weight += 0.15; }
+                if matches!(imp.action, Action::CarryDirt { .. }) { imp.weight += 0.1; }
+            });
+        }
+        Role::Nurse => {
+            // Nurses: stay near queen, respond to queen pheromone
+            if perception.queen_detected {
+                impulses.iter_mut().for_each(|imp| {
+                    if matches!(imp.action, Action::Move(_)) { imp.weight -= 0.2; }
+                });
+                // Nurses tend to stay and clean near queen
+                if brain.maintenance_drive > 0.2 {
+                    impulses.push(Impulse { action: Action::Groom, weight: 0.3 });
+                }
+            }
+        }
+        Role::WasteWorker => {
+            // Waste workers: drawn to waste/death pheromone, carry waste away
+            if let Some((dir, _)) = perception.strongest_pheromone_dir(PheromoneType::Waste) {
+                impulses.push(Impulse { action: Action::Move(dir), weight: 0.5 });
+            }
+            if let Some((dir, _)) = perception.strongest_pheromone_dir(PheromoneType::Death) {
+                impulses.push(Impulse { action: Action::Move(dir), weight: 0.6 });
+                // Clean up corpses
+                if perception.cells[1][1] == Material::OrganicWaste {
+                    impulses.push(Impulse { action: Action::Dig(Direction::S), weight: 0.4 });
+                }
+            }
+        }
     }
 
     // ── Pheromone-driven impulses (path optimization) ──

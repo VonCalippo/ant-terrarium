@@ -123,6 +123,12 @@ impl Simulation {
             let perception = perceive(&self.grid, self.ants.bodies[i].pos, self.ants.memories[i].home_position);
             update_needs(&mut self.ants.brains[i], &self.ants.traits_vec[i], &perception);
 
+            // Dynamic role re-evaluation (every ~100 ticks)
+            if self.tick % 100 == 0 {
+                let signal = self.compute_colony_signal();
+                self.ants.bodies[i].role = self.ants.bodies[i].role.next(&signal);
+            }
+
             // Interrupt current action if critical need
             if self.ants.bodies[i].action_ticks > 0
                 && (self.ants.brains[i].hunger > 0.85 || self.ants.brains[i].fear > 0.7)
