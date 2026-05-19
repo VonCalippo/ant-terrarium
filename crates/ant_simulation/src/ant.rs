@@ -304,31 +304,51 @@ pub fn perceive(
 
 // ── Decision Making ──
 
+/// Colony-level metrics that modulate individual ant behavior
+#[derive(Debug, Clone, Default)]
+pub struct ColonySignal {
+    pub food_scarcity: f32,     // 0=plenty, 1=starving — boosts exploration
+    pub crowding: f32,          // 0=sparse, 1=packed — boosts digging
+    pub queen_distress: f32,    // 0=calm, 1=dying — boosts social/maintenance
+}
+
 pub fn calculate_impulses(
     brain: &AntBrain,
     memory: &AntMemory,
     traits: &AntTraits,
     perception: &LocalPerception,
     body: &AntBody,
+    signal: &ColonySignal,
 ) -> Vec<Impulse> {
     let mut impulses = Vec::new();
+
+    // Eat carried food when hungry and in a safe spot (underground or near dirt)
+    if brain.hunger > 0.4 && body.carrying == Some(CarriedItem::Food) {
+        let is_underground = matches!(perception.cells[1][1], Material::Dirt | Material::LooseDirt | Material::WetDirt)
+            || !perception.dirt_adjacent.is_empty();
+        if is_underground || perception.queen_detected {
+            impulses.push(Impulse { action: Action::Eat, weight: brain.hunger * 0.8 });
+        }
+    }
 
     if perception.food_detected && brain.hunger > 0.3 {
         let w = if brain.hunger > 0.6 { 0.9 } else { 0.5 };
         impulses.push(Impulse { action: Action::CollectFood, weight: w });
     }
     if brain.hunger > 0.8 && !perception.food_detected {
-        // If underground, go up to surface to find food
         let dir = if perception.cells[1][1] != Material::Air || perception.cells[0][1] == Material::Dirt {
-            Direction::N // Move up toward surface
+            Direction::N
         } else {
             random_direction()
         };
-        impulses.push(Impulse { action: Action::Move(dir), weight: 0.8 });
+        // Food scarcity amplifies exploration
+        let w = (0.8 + signal.food_scarcity * 0.15).min(0.95);
+        impulses.push(Impulse { action: Action::Move(dir), weight: w });
     }
     if brain.hunger > 0.5 && !perception.food_detected {
         let dir = random_direction();
-        impulses.push(Impulse { action: Action::Move(dir), weight: 0.4 });
+        let w = 0.4 + signal.food_scarcity * 0.3;
+        impulses.push(Impulse { action: Action::Move(dir), weight: w });
     }
     // If hungry and underground, go up to surface
     if brain.hunger > 0.6 && perception.cells[0][1] != Material::Air {
@@ -339,32 +359,23 @@ pub fn calculate_impulses(
             impulses.push(Impulse { action: Action::Move(Direction::N), weight: 0.6 });
         }
     }
-    // Carrying food: take it to the nest (queen/home position)
+    // Carrying food: navigate to the queen to deliver
     if body.carrying == Some(CarriedItem::Food) {
-        if perception.queen_detected {
-            // Deliver to queen/nest
+        let dx = memory.home_position.x as i32 - body.pos.x as i32;
+        let dy = memory.home_position.y as i32 - body.pos.y as i32;
+        let dir = approx_direction(dx, dy);
+        let dist = ((dx * dx + dy * dy) as f32).sqrt();
+
+        // If very close to queen, deliver
+        if perception.queen_detected && dist <= 2.0 {
             impulses.push(Impulse {
-                action: Action::CarryFood { to: perception.queen_dir.map(|d| body.pos.neighbor(d).unwrap_or(body.pos)).unwrap_or(body.pos) },
+                action: Action::CarryFood { to: memory.home_position },
                 weight: 0.95,
             });
         } else {
-            // Navigate toward home using memory
-            let dx = memory.home_position.x as i32 - body.pos.x as i32;
-            let dy = memory.home_position.y as i32 - body.pos.y as i32;
-            let dir = approx_direction(dx, dy);
-            impulses.push(Impulse { action: Action::Move(dir), weight: 0.8 });
-        }
-    }
-
-    // If hungry and near home, eat carried food or stored food
-    if brain.hunger > 0.5 && body.carrying == Some(CarriedItem::Food) {
-        // Check if underground (safe to eat)
-        if perception.cells[1][1] == Material::Dirt || perception.cells[1][1] == Material::Air {
-            let below = perception.cells[2][1]; // cell below
-            if below == Material::Dirt || below == Material::Stone {
-                // Underground: eat here
-                impulses.push(Impulse { action: Action::Eat, weight: brain.hunger * 0.9 });
-            }
+            // Navigate toward queen/home
+            impulses.push(Impulse { action: Action::Move(dir), weight: 0.9 });
+            // Drop food trail while carrying
         }
     }
 
@@ -400,14 +411,30 @@ pub fn calculate_impulses(
     if !perception.dirt_adjacent.is_empty() {
         let dir = perception.dirt_adjacent[0];
 
-        // Primary driver: if exposed (in air), dig toward nearest dirt
-        if perception.cells[1][1] == Material::Air {
-            impulses.push(Impulse { action: Action::Dig(dir), weight: 0.85 });
+        // Primary driver: if exposed on surface, dig down
+        let on_surface = perception.cells[1][1] == Material::Air
+            && matches!(perception.cells[2][1], Material::Dirt | Material::Sand | Material::LooseDirt);
+        if on_surface {
+            impulses.push(Impulse { action: Action::Dig(Direction::S), weight: 0.85 });
         }
 
-        // If already in dirt, dig to expand tunnels
+        // Underground expansion: dig to make space
         if matches!(perception.cells[1][1], Material::Dirt | Material::LooseDirt | Material::WetDirt) {
-            impulses.push(Impulse { action: Action::Dig(dir), weight: 0.5 + brain.maintenance_drive * 0.3 });
+            let w = 0.35 + brain.maintenance_drive * 0.3 + signal.crowding * 0.3;
+            impulses.push(Impulse { action: Action::Dig(dir), weight: w.min(0.8) });
+        }
+
+        // In air underground (chamber): expand moderately
+        if perception.cells[1][1] == Material::Air && !on_surface && !perception.dirt_adjacent.is_empty() {
+            let w = 0.3 + signal.crowding * 0.3 + brain.maintenance_drive * 0.2;
+            impulses.push(Impulse { action: Action::Dig(dir), weight: w.min(0.7) });
+        }
+
+        // If hungry and underground, dig up toward surface
+        if brain.hunger > 0.6 && perception.cells[1][1] != Material::Air {
+            if perception.dirt_adjacent.contains(&Direction::N) {
+                impulses.push(Impulse { action: Action::Dig(Direction::N), weight: 0.8 });
+            }
         }
     }
 
@@ -421,19 +448,25 @@ pub fn calculate_impulses(
         impulses.push(Impulse { action: Action::Groom, weight: 0.5 });
     }
 
-    // ── Pheromone-driven impulses ──
+    // ── Pheromone-driven impulses (path optimization) ──
     let ps = traits.pheromone_sensitivity;
 
-    // FOOD pheromone attraction
+    // FOOD pheromone: follow to find food sources
     if let Some((dir, strength)) = perception.strongest_pheromone_dir(PheromoneType::Food) {
-        let w = (strength as f32 / 255.0) * 0.6 * (1.0 + ps);
-        impulses.push(Impulse { action: Action::Move(dir), weight: w });
+        let w = (strength as f32 / 255.0) * 0.7 * (1.0 + ps);
+        impulses.push(Impulse { action: Action::Move(dir), weight: w.min(0.9) });
     }
 
-    // HOME pheromone attraction
+    // HOME pheromone: follow to return to nest
     if let Some((dir, strength)) = perception.strongest_pheromone_dir(PheromoneType::Home) {
+        let w = (strength as f32 / 255.0) * 0.6 * (1.0 + ps);
+        impulses.push(Impulse { action: Action::Move(dir), weight: w.min(0.85) });
+    }
+
+    // DIG pheromone: go where others are digging
+    if let Some((dir, strength)) = perception.strongest_pheromone_dir(PheromoneType::Dig) {
         let w = (strength as f32 / 255.0) * 0.5 * (1.0 + ps);
-        impulses.push(Impulse { action: Action::Move(dir), weight: w });
+        impulses.push(Impulse { action: Action::Dig(dir), weight: w.min(0.8) });
     }
 
     // DANGER pheromone repel

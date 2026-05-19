@@ -1,4 +1,4 @@
-use crate::ant::{AntState, AntEvent, perceive, update_needs, calculate_impulses, select_action, execute_action};
+use crate::ant::{AntState, AntEvent, ColonySignal, perceive, update_needs, calculate_impulses, select_action, execute_action};
 use crate::ecology::tick_ecology;
 use crate::grid::Grid;
 use crate::queen::{AntAge, Queen, QueenEvent, LifeStage, tick_life_stages, tick_corpses};
@@ -95,8 +95,29 @@ impl Simulation {
         }
     }
 
+    pub fn compute_colony_signal(&self) -> ColonySignal {
+        let ant_count = self.ants.bodies.len().max(1) as f32;
+
+        // Food scarcity: how many ants are very hungry
+        let starving = self.ants.brains.iter().filter(|b| b.hunger > 0.7).count() as f32;
+        let food_scarcity = (starving / ant_count).clamp(0.0, 1.0);
+
+        // Crowding: ants per air cell in the nest area (rough: ants / 10)
+        let crowding = (ant_count / 10.0).clamp(0.0, 1.0);
+
+        // Queen distress
+        let queen_distress = if self.queen.alive {
+            (self.queen.hunger * 0.5 + self.queen.stress * 0.5).clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
+
+        ColonySignal { food_scarcity, crowding, queen_distress }
+    }
+
     pub fn tick_ants(&mut self) -> Vec<AntEvent> {
         let mut events = Vec::new();
+        let signal = self.compute_colony_signal();
 
         for i in 0..self.ants.bodies.len() {
             let perception = perceive(&self.grid, self.ants.bodies[i].pos, self.ants.memories[i].home_position);
@@ -130,6 +151,7 @@ impl Simulation {
                 &self.ants.traits_vec[i],
                 &perception,
                 &self.ants.bodies[i],
+                &signal,
             );
             let action = select_action(&impulses, &self.ants.traits_vec[i]);
             self.ants.bodies[i].current_action = action;

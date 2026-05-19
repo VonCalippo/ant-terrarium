@@ -28,11 +28,18 @@ impl Queen {
 
         let mut events = Vec::new();
 
-        self.hunger = (self.hunger + 0.001).min(1.0);
+        self.hunger = (self.hunger + 0.0005).min(1.0);
         self.stress = (self.stress + 0.0005).min(1.0);
 
-        // Emit QUEEN pheromone
+        // Auto-feed only when there's surplus (keep reserve for eggs)
+        if self.hunger > 0.5 && self.food_reserve > 10 {
+            self.food_reserve -= 1;
+            self.hunger = (self.hunger - 0.4).max(0.0);
+        }
+
+        // Emit QUEEN pheromone and HOME pheromone
         grid.deposit_pheromone(self.pos, PheromoneType::Queen, 20);
+        grid.deposit_pheromone(self.pos, PheromoneType::Home, 10);
 
         // Health
         if self.hunger > 0.9 || self.stress > 0.9 {
@@ -43,7 +50,7 @@ impl Queen {
 
         // Egg laying
         if self.food_reserve >= 5 && self.hunger < 0.7 && self.stress < 0.8 && self.health > 0.1 {
-            self.egg_progress += 0.02; // ~50 ticks per egg when well-fed
+            self.egg_progress += 0.05; // ~20 ticks per egg when well-fed
             if self.egg_progress >= 1.0 {
                 self.egg_progress = 0.0;
                 self.food_reserve = self.food_reserve.saturating_sub(5);
