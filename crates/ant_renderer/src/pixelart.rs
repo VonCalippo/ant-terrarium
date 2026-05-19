@@ -156,16 +156,16 @@ fn build_fungus() -> Vec<u8> {
 }
 
 fn sky_image() -> Image {
-    let mut data = Vec::with_capacity(96 * 4);
-    for y in 0u8..96 {
-        let t = y as f32 / 95.0;
+    let mut data = Vec::with_capacity(72 * 4);
+    for y in 0u8..72 {
+        let t = y as f32 / 71.0;
         let r = 15 + (t * 20.0) as u8;
         let g = 20 + (t * 25.0) as u8;
         let b = 40 + (t * 35.0) as u8;
         data.extend_from_slice(&[r, g, b, 255]);
     }
     Image::new(
-        Extent3d { width: 1, height: 96, depth_or_array_layers: 1 },
+        Extent3d { width: 1, height: 72, depth_or_array_layers: 1 },
         TextureDimension::D2,
         data,
         TextureFormat::Rgba8UnormSrgb,

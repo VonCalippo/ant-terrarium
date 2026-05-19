@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 
 pub const CELL_SIZE: f32 = 8.0;
-pub const GRID_WIDTH: u16 = 128;
-pub const GRID_HEIGHT: u16 = 96;
+pub const GRID_WIDTH: u16 = 96;
+pub const GRID_HEIGHT: u16 = 72;
 pub const QUEEN_COLOR: Color = Color::srgb(0.91, 0.75, 0.25);
 
 pub fn material_color(material: ant_simulation::grid::Material) -> Color {

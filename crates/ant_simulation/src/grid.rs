@@ -404,10 +404,10 @@ mod tests {
 
     #[test]
     fn test_grid_new_correct_size() {
-        let grid = Grid::new(128, 96);
-        assert_eq!(grid.width, 128);
-        assert_eq!(grid.height, 96);
-        assert_eq!(grid.cells.len(), 128 * 96);
+        let grid = Grid::new(96, 72);
+        assert_eq!(grid.width, 96);
+        assert_eq!(grid.height, 72);
+        assert_eq!(grid.cells.len(), 96 * 72);
         assert!(grid.cells.iter().all(|c| c.material == Material::Air));
     }
 
@@ -499,16 +499,15 @@ mod tests {
 
     #[test]
     fn test_generate_initial_world() {
-        let grid = Grid::generate_initial_world(128, 96);
-        assert_eq!(grid.width, 128);
-        assert_eq!(grid.height, 96);
-        assert_eq!(grid.get(GridPos::new(64, 0)).unwrap().material, Material::Air);
+        let grid = Grid::generate_initial_world(96, 72);
+        assert_eq!(grid.width, 96);
+        assert_eq!(grid.height, 72);
+        assert_eq!(grid.get(GridPos::new(48, 0)).unwrap().material, Material::Air);
         let sy = grid.surface_y();
-        // (64, sy) is the entrance tunnel — should be Air now
-        assert_eq!(grid.get(GridPos::new(64, sy)).unwrap().material, Material::Air);
-        assert_eq!(grid.get(GridPos::new(64, 95)).unwrap().material, Material::Stone);
+        assert_eq!(grid.get(GridPos::new(48, sy)).unwrap().material, Material::Air);
+        assert_eq!(grid.get(GridPos::new(48, 71)).unwrap().material, Material::Stone);
         let qpos = grid.queen_position();
-        assert_eq!(qpos.x, 64);
+        assert_eq!(qpos.x, 48);
         assert_eq!(qpos.y, sy + 2);
     }
 }

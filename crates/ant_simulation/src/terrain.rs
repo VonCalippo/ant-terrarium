@@ -92,12 +92,12 @@ pub fn update_stability(grid: &mut Grid) -> Vec<TerrainEvent> {
 
             // Phase 1: read all needed data immutably
             let has_support = match grid.cell_below(pos) {
-                Some(below) => below.material.is_solid() && !below.material.is_terrain(),
+                Some(below) => below.material.is_solid(),
                 None => false,
             };
             let pos_below = GridPos::new(pos.x, pos.y + 1);
             let below_is_unsupportive = grid.get(pos_below)
-                .map(|b| !b.material.is_solid() || b.material.is_terrain())
+                .map(|b| !b.material.is_solid())
                 .unwrap_or(false);
 
             // Phase 2: apply mutations
