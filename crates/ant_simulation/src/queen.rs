@@ -1,4 +1,4 @@
-use crate::grid::{Grid, GridPos, Material, PheromoneType};
+use crate::grid::{Direction, Grid, GridPos, Material, PheromoneType};
 
 pub struct Queen {
     pub pos: GridPos,
@@ -35,6 +35,19 @@ impl Queen {
         if self.hunger > 0.5 && self.food_reserve > 10 {
             self.food_reserve -= 1;
             self.hunger = (self.hunger - 0.4).max(0.0);
+        }
+
+        // Queen movement: rarely moves, only under stress or danger
+        let danger_nearby = grid.pheromone_at(self.pos, PheromoneType::Danger) > 50
+            || grid.pheromone_at(self.pos, PheromoneType::Death) > 50;
+        let should_move = danger_nearby || self.stress > 0.8 || self.hunger > 0.9;
+
+        if should_move && rand::thread_rng().gen_range(0..3) == 0 {
+            // Find a safe adjacent cell to move to
+            if let Some(new_pos) = find_safe_spot(grid, self.pos) {
+                self.pos = new_pos;
+                self.stress = (self.stress - 0.2).max(0.0);
+            }
         }
 
         // Emit QUEEN pheromone and HOME pheromone
@@ -82,10 +95,30 @@ impl Queen {
     }
 }
 
+fn find_safe_spot(grid: &Grid, pos: GridPos) -> Option<GridPos> {
+    let mut rng = rand::thread_rng();
+    let mut dirs: Vec<Direction> = Vec::from(Direction::ALL);
+    for i in (1..dirs.len()).rev() { let j = rng.gen_range(0..=i); dirs.swap(i, j); }
+    for dir in &dirs {
+        if let Some(np) = pos.neighbor(*dir) {
+            if let Some(cell) = grid.get(np) {
+                // Prefer air cells with low danger
+                if cell.material == Material::Air
+                    && cell.pheromones.danger < 30
+                    && cell.pheromones.death < 30
+                {
+                    return Some(np);
+                }
+            }
+        }
+    }
+    None
+}
+
 fn find_adjacent_air(grid: &Grid, pos: GridPos) -> Option<GridPos> {
     use crate::grid::Direction;
     let mut rng = rand::thread_rng();
-    let mut dirs: Vec<Direction> = Direction::ALL.to_vec();
+    let mut dirs: Vec<Direction> = Vec::from(Direction::ALL);
     // Shuffle for randomness
     for i in (1..dirs.len()).rev() {
         let j = rng.gen_range(0..=i);
