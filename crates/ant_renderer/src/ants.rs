@@ -60,7 +60,7 @@ pub(crate) fn update_ant_sprites(
     };
 
     let dt = time.delta_secs();
-    let lerp_speed = 18.0;
+    let lerp_speed = 8.0;
 
     for (ant_sprite, mut sprite, mut transform, mut target) in query.iter_mut() {
         if let Some(ant) = snapshot.ants.iter().find(|a| a.id == ant_sprite.ant_id) {

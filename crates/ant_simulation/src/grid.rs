@@ -26,7 +26,9 @@ impl Material {
     }
 
     pub fn is_walkable(self) -> bool {
-        !matches!(self, Material::Stone)
+        // Ants can only walk on air, tunnels, surface, and non-solid materials
+        // NOT through solid dirt/sand — that requires digging
+        matches!(self, Material::Air | Material::Water | Material::Food | Material::Fungus | Material::OrganicWaste | Material::Egg | Material::Larva)
     }
 
     pub fn is_diggable(self) -> bool {
@@ -349,8 +351,8 @@ mod tests {
     #[test]
     fn test_material_is_walkable() {
         assert!(Material::Air.is_walkable());
-        assert!(Material::Dirt.is_walkable());
-        assert!(Material::Sand.is_walkable());
+        assert!(!Material::Dirt.is_walkable());     // need to dig through dirt
+        assert!(!Material::Sand.is_walkable());     // need to dig through sand
         assert!(!Material::Stone.is_walkable());
     }
 

@@ -65,7 +65,7 @@ pub enum Action {
 impl Action {
     pub fn base_ticks(self) -> u8 {
         match self {
-            Action::Move(_) => 1,
+            Action::Move(_) => 2,
             Action::Dig(_) => 3,
             Action::CollectFood => 3,
             Action::Eat => 5,
@@ -925,7 +925,7 @@ mod tests {
 
     #[test]
     fn test_action_base_ticks() {
-        assert_eq!(Action::Move(Direction::N).base_ticks(), 1);
+        assert_eq!(Action::Move(Direction::N).base_ticks(), 2);
         assert_eq!(Action::Dig(Direction::S).base_ticks(), 3);
         assert_eq!(Action::Rest.base_ticks(), 10);
         assert_eq!(Action::Eat.base_ticks(), 5);

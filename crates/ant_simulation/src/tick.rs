@@ -16,18 +16,18 @@ impl Speed {
     pub fn tick_interval_ms(self) -> Option<u64> {
         match self {
             Speed::Paused => None,
-            Speed::Normal => Some(16),   // ~60 ticks/sec
-            Speed::Fast => Some(8),      // ~120 ticks/sec
-            Speed::Fastest => Some(2),   // ~500 ticks/sec
+            Speed::Normal => Some(50),   // ~20 ticks/sec
+            Speed::Fast => Some(25),      // ~40 ticks/sec
+            Speed::Fastest => Some(10),   // ~100 ticks/sec
         }
     }
 
     pub fn ticks_per_second(self) -> u16 {
         match self {
             Speed::Paused => 0,
-            Speed::Normal => 60,
-            Speed::Fast => 120,
-            Speed::Fastest => 500,
+            Speed::Normal => 20,
+            Speed::Fast => 40,
+            Speed::Fastest => 100,
         }
     }
 }
@@ -270,17 +270,17 @@ mod tests {
     #[test]
     fn test_speed_tick_interval() {
         assert_eq!(Speed::Paused.tick_interval_ms(), None);
-        assert_eq!(Speed::Normal.tick_interval_ms(), Some(16));
-        assert_eq!(Speed::Fast.tick_interval_ms(), Some(8));
-        assert_eq!(Speed::Fastest.tick_interval_ms(), Some(2));
+        assert_eq!(Speed::Normal.tick_interval_ms(), Some(50));
+        assert_eq!(Speed::Fast.tick_interval_ms(), Some(25));
+        assert_eq!(Speed::Fastest.tick_interval_ms(), Some(10));
     }
 
     #[test]
     fn test_speed_ticks_per_second() {
         assert_eq!(Speed::Paused.ticks_per_second(), 0);
-        assert_eq!(Speed::Normal.ticks_per_second(), 60);
-        assert_eq!(Speed::Fast.ticks_per_second(), 120);
-        assert_eq!(Speed::Fastest.ticks_per_second(), 500);
+        assert_eq!(Speed::Normal.ticks_per_second(), 20);
+        assert_eq!(Speed::Fast.ticks_per_second(), 40);
+        assert_eq!(Speed::Fastest.ticks_per_second(), 100);
     }
 
     #[test]
@@ -314,7 +314,7 @@ mod tests {
         let mut sim = Simulation::new(10, 10);
         sim.set_speed(Speed::Fast);
         assert_eq!(sim.speed, Speed::Fast);
-        assert_eq!(sim.tick_interval_ms(), Some(8));
+        assert_eq!(sim.tick_interval_ms(), Some(25));
     }
 
     #[test]
