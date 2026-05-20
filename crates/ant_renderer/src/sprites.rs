@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use ant_simulation::snapshot::Snapshot;
 use crate::app::SimResource;
 use crate::pixelart::PixelAssets;
+use crate::textures::{TextureAssets, texture_for_material, grass_variant, tunnel_texture};
 use crate::assets::{self, CELL_SIZE, GRID_WIDTH, GRID_HEIGHT};
 
 // Sky colors now in assets::sky_color()
@@ -48,77 +49,45 @@ pub fn setup_grid_sprites(
     mut commands: Commands,
     simulation: Res<SimResource>,
     pixel_assets: Res<PixelAssets>,
+    textures: Res<TextureAssets>,
 ) {
     let snap = Snapshot::from_simulation(&simulation);
     let surface_y = simulation.grid.surface_y();
-    let queen_pos = simulation.grid.queen_position();
 
     for y in 0..snap.height {
         for x in 0..snap.width {
             let idx = y as usize * snap.width as usize + x as usize;
             let cell = snap.cells[idx];
-            let color = match cell.material {
-                ant_simulation::grid::Material::Air => {
-                    if y > surface_y {
-                        // Underground: dark tunnel void
-                        let dist = ((x as i32 - queen_pos.x as i32).abs() + (y as i32 - queen_pos.y as i32).abs()) as f32;
-                        if dist < 5.0 {
-                            // Near queen: warm chamber glow
-                            let warmth = 1.0 - dist / 5.0;
-                            Color::srgb(0.15, 0.10, 0.06)
-                                .mix(&Color::srgb(0.7, 0.5, 0.2), warmth * 0.5)
-                        } else {
-                            // Tunnel: dark void
-                            Color::srgb(0.12, 0.08, 0.05)
-                        }
-                    } else {
-                        // Above ground: sky
-                        assets::sky_color(y as u16, snap.height)
-                    }
-                }
-                ant_simulation::grid::Material::Dirt if y == surface_y => assets::surface_color(),
-                // Dirt adjacent to air (tunnel walls): slightly lighter for contrast
-                ant_simulation::grid::Material::Dirt => {
-                    let mut base = assets::material_color(cell.material);
-                    // Check if adjacent to underground air
-                    let has_air_neighbor = (x > 0 && snap.cells.get((y as usize) * snap.width as usize + (x as usize - 1)).map(|c| c.material == ant_simulation::grid::Material::Air && y > surface_y).unwrap_or(false))
-                        || (x + 1 < snap.width && snap.cells.get((y as usize) * snap.width as usize + (x as usize + 1)).map(|c| c.material == ant_simulation::grid::Material::Air && y > surface_y).unwrap_or(false))
-                        || (y > 0 && snap.cells.get(((y as usize - 1) * snap.width as usize + x as usize)).map(|c| c.material == ant_simulation::grid::Material::Air && (y - 1) > surface_y).unwrap_or(false))
-                        || (y + 1 < snap.height && snap.cells.get(((y as usize + 1) * snap.width as usize + x as usize)).map(|c| c.material == ant_simulation::grid::Material::Air && (y + 1) > surface_y).unwrap_or(false));
-                    if has_air_neighbor {
-                        base = base.mix(&Color::srgb(0.55, 0.40, 0.22), 0.3);
-                    }
-                    base
-                }
-                _ => assets::material_color(cell.material),
-            };
-            let world_x = x as f32 * CELL_SIZE;
-            let world_y = -(y as f32 * CELL_SIZE);
-
-            let sprite_image = match cell.material {
+            let tex = match cell.material {
+                ant_simulation::grid::Material::Dirt if y == surface_y => Some(grass_variant(&textures, x as u16, y as u16)),
+                ant_simulation::grid::Material::Dirt
+                | ant_simulation::grid::Material::Stone
+                | ant_simulation::grid::Material::Sand
+                | ant_simulation::grid::Material::LooseDirt
+                | ant_simulation::grid::Material::WetDirt => texture_for_material(&textures, cell.material, x as u16, y as u16),
+                ant_simulation::grid::Material::Air if y > surface_y => Some(tunnel_texture(&textures)),
                 ant_simulation::grid::Material::Egg => Some(pixel_assets.egg_sprite.clone()),
                 ant_simulation::grid::Material::Larva => Some(pixel_assets.larva_sprite.clone()),
                 ant_simulation::grid::Material::Fungus => Some(pixel_assets.fungus_sprite.clone()),
                 _ => None,
             };
 
-            if let Some(image) = sprite_image {
+            let world_x = x as f32 * CELL_SIZE;
+            let world_y = -(y as f32 * CELL_SIZE);
+
+            if let Some(image) = tex {
                 commands.spawn((
-                    Sprite {
-                        image,
-                        custom_size: Some(Vec2::splat(CELL_SIZE)),
-                        ..default()
-                    },
-                    Transform::from_xyz(world_x, world_y, 0.5),
+                    Sprite { image, custom_size: Some(Vec2::splat(CELL_SIZE)), ..default() },
+                    Transform::from_xyz(world_x, world_y, 0.0),
                     CellSprite { grid_x: x as u16, grid_y: y as u16 },
                 ));
             } else {
+                let color = match cell.material {
+                    ant_simulation::grid::Material::Air => assets::sky_color(y as u16, snap.height),
+                    _ => assets::material_color(cell.material),
+                };
                 commands.spawn((
-                    Sprite {
-                        color,
-                        custom_size: Some(Vec2::splat(CELL_SIZE)),
-                        ..default()
-                    },
+                    Sprite { color, custom_size: Some(Vec2::splat(CELL_SIZE)), ..default() },
                     Transform::from_xyz(world_x, world_y, 0.0),
                     CellSprite { grid_x: x as u16, grid_y: y as u16 },
                 ));
