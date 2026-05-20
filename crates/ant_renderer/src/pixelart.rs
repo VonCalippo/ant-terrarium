@@ -3,10 +3,10 @@ use ant_simulation::grid::Direction;
 
 #[derive(Resource)]
 pub struct PixelAssets {
-    pub ant_right: Handle<Image>,
-    pub ant_left: Handle<Image>,
-    pub ant_up: Handle<Image>,
-    pub ant_down: Handle<Image>,
+    pub ant_right_1: Handle<Image>, pub ant_right_2: Handle<Image>,
+    pub ant_left_1: Handle<Image>, pub ant_left_2: Handle<Image>,
+    pub ant_up_1: Handle<Image>, pub ant_up_2: Handle<Image>,
+    pub ant_down_1: Handle<Image>, pub ant_down_2: Handle<Image>,
     pub queen_sprite: Handle<Image>,
     pub egg_sprite: Handle<Image>,
     pub larva_sprite: Handle<Image>,
@@ -29,10 +29,10 @@ fn make_8x8(pixels: &[u8]) -> Image {
 
 pub fn setup_pixel_art(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     commands.insert_resource(PixelAssets {
-        ant_right: images.add(make_8x8(&build_ant_right())),
-        ant_left: images.add(make_8x8(&build_ant_left())),
-        ant_up: images.add(make_8x8(&build_ant_up())),
-        ant_down: images.add(make_8x8(&build_ant_down())),
+        ant_right_1: images.add(make_8x8(&build_ant_right_1())), ant_right_2: images.add(make_8x8(&build_ant_right_2())),
+        ant_left_1: images.add(make_8x8(&build_ant_left_1())), ant_left_2: images.add(make_8x8(&build_ant_left_2())),
+        ant_up_1: images.add(make_8x8(&build_ant_up_1())), ant_up_2: images.add(make_8x8(&build_ant_up_2())),
+        ant_down_1: images.add(make_8x8(&build_ant_down_1())), ant_down_2: images.add(make_8x8(&build_ant_down_2())),
         queen_sprite: images.add(make_8x8(&build_queen())),
         egg_sprite: images.add(make_8x8(&build_egg())),
         larva_sprite: images.add(make_8x8(&build_larva())),
@@ -41,12 +41,13 @@ pub fn setup_pixel_art(mut commands: Commands, mut images: ResMut<Assets<Image>>
     });
 }
 
-pub fn ant_sprite_handle(assets: &PixelAssets, dir: Direction) -> Handle<Image> {
+pub fn ant_sprite_handle(assets: &PixelAssets, dir: Direction, tick: u64) -> Handle<Image> {
+    let f = ((tick / 8) % 2) as usize;
     match dir {
-        Direction::N | Direction::NE | Direction::NW => assets.ant_up.clone(),
-        Direction::S | Direction::SE | Direction::SW => assets.ant_down.clone(),
-        Direction::E => assets.ant_right.clone(),
-        Direction::W => assets.ant_left.clone(),
+        Direction::N | Direction::NE | Direction::NW => [&assets.ant_up_1, &assets.ant_up_2][f].clone(),
+        Direction::S | Direction::SE | Direction::SW => [&assets.ant_down_1, &assets.ant_down_2][f].clone(),
+        Direction::E => [&assets.ant_right_1, &assets.ant_right_2][f].clone(),
+        Direction::W => [&assets.ant_left_1, &assets.ant_left_2][f].clone(),
     }
 }
 
@@ -73,6 +74,48 @@ fn pix(c: [u8; 4]) -> [u8; 4] { c }
 
 fn emit(target: &mut Vec<u8>, grid: &[[u8; 4]; 64]) {
     for p in grid { target.extend_from_slice(p); }
+}
+
+// Walk frames: frame 1 = legs spread, frame 2 = legs together
+fn build_ant_right_1() -> Vec<u8> { build_ant_right() }  // original = frame 1
+fn build_ant_right_2() -> Vec<u8> { // legs closer together
+    let mut v = Vec::with_capacity(256);
+    let t = pix(Z); let d = pix(BD); let m = pix(BM); let l = pix(BL); let e = pix(BE);
+    emit(&mut v, &[
+        t,t,t,d,d,t,t,t, t,t,d,m,m,d,t,t, t,t,d,m,m,e,t,t, t,d,m,m,m,d,d,t,
+        d,m,m,m,l,m,d,t, t,d,d,d,d,d,t,t, t,t,d,t,t,d,t,t, t,t,t,t,t,d,t,t,
+    ]);
+    v
+}
+fn build_ant_left_1() -> Vec<u8> { build_ant_left() }
+fn build_ant_left_2() -> Vec<u8> {
+    let mut v = Vec::with_capacity(256);
+    let t = pix(Z); let d = pix(BD); let m = pix(BM); let l = pix(BL); let e = pix(BE);
+    emit(&mut v, &[
+        t,t,d,d,t,t,t,t, t,t,d,m,m,d,t,t, t,t,e,m,m,d,t,t, t,d,d,m,m,m,d,t,
+        t,d,m,l,m,m,m,d, t,t,d,d,d,d,d,t, t,t,d,t,t,d,t,t, t,t,t,t,t,d,t,t,
+    ]);
+    v
+}
+fn build_ant_up_1() -> Vec<u8> { build_ant_up() }
+fn build_ant_up_2() -> Vec<u8> {
+    let mut v = Vec::with_capacity(256);
+    let t = pix(Z); let d = pix(BD); let m = pix(BM); let l = pix(BL); let e = pix(BE);
+    emit(&mut v, &[
+        t,t,t,d,d,t,t,t, t,t,d,d,d,d,t,t, t,d,l,m,m,l,d,t, d,l,m,e,e,m,l,d,
+        t,d,m,m,m,m,d,t, t,t,d,m,m,d,t,t, t,t,t,d,d,t,t,t, t,t,t,t,t,d,t,t,
+    ]);
+    v
+}
+fn build_ant_down_1() -> Vec<u8> { build_ant_down() }
+fn build_ant_down_2() -> Vec<u8> {
+    let mut v = Vec::with_capacity(256);
+    let t = pix(Z); let d = pix(BD); let m = pix(BM); let l = pix(BL); let e = pix(BE);
+    emit(&mut v, &[
+        t,t,t,d,d,t,t,t, t,t,d,d,d,d,t,t, t,d,l,m,m,l,d,t, d,l,m,e,e,m,l,d,
+        t,d,m,m,m,m,d,t, t,t,d,m,m,d,t,t, t,d,t,d,d,t,d,t, t,t,t,t,d,t,t,t,
+    ]);
+    v
 }
 
 fn build_ant_right() -> Vec<u8> {

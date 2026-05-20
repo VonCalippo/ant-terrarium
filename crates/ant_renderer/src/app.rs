@@ -79,6 +79,8 @@ impl Plugin for TerrariumPlugin {
             sprites::tick_simulation,
             sprites::apply_snapshot,
             ants::update_ant_sprites,
+            ants::spawn_dig_particles,
+            ants::update_particles,
             camera::zoom_camera,
             camera::pan_camera,
             camera::keyboard_pan,

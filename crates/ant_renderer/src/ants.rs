@@ -13,6 +13,12 @@ pub struct AntSprite {
     pub ant_id: usize,
 }
 
+#[derive(Component)]
+pub struct Particle {
+    pub life: f32,
+    pub max_life: f32,
+}
+
 pub(crate) fn spawn_ant_sprites(
     mut commands: Commands,
     simulation: Res<SimResource>,
@@ -21,7 +27,7 @@ pub(crate) fn spawn_ant_sprites(
     let snap = ant_simulation::snapshot::Snapshot::from_simulation(&simulation);
 
     for ant in &snap.ants {
-        let image = ant_sprite_handle(&pixel_assets, ant.direction);
+        let image = ant_sprite_handle(&pixel_assets, ant.direction, 0);
         let x = ant.pos.x as f32 * CELL_SIZE;
         let y = -(ant.pos.y as f32 * CELL_SIZE);
 
@@ -61,7 +67,7 @@ pub(crate) fn update_ant_sprites(
             target.x = ant.pos.x as f32 * CELL_SIZE;
             target.y = -(ant.pos.y as f32 * CELL_SIZE);
 
-            sprite.image = ant_sprite_handle(&pixel_assets, ant.direction);
+            sprite.image = ant_sprite_handle(&pixel_assets, ant.direction, snapshot.tick);
 
             // Color: base body tint + action indicator
             sprite.color = action_tint(ant.action, ant.stress, ant.agitation);
@@ -75,6 +81,51 @@ pub(crate) fn update_ant_sprites(
             transform.translation.y += (target.y - transform.translation.y) * t;
         }
     }
+}
+
+pub(crate) fn spawn_dig_particles(
+    mut commands: Commands,
+    query: Query<(&Transform, &AntSprite)>,
+    simulation_state: Res<SimulationState>,
+) {
+    let snapshot = match &simulation_state.snapshot { Some(s) => s, None => return };
+    for (transform, ant_sprite) in query.iter() {
+        if let Some(ant) = snapshot.ants.iter().find(|a| a.id == ant_sprite.ant_id) {
+            if matches!(ant.action, Action::Dig(_)) && snapshot.tick % 3 == 0 {
+                let seed = (snapshot.tick + ant_sprite.ant_id as u64) * 12345;
+                for i in 0..2 {
+                    let ox = (quick_rand(seed + i as u64) - 0.5) * CELL_SIZE * 0.6;
+                    let oy = (quick_rand(seed + i as u64 + 100) - 0.5) * CELL_SIZE * 0.6;
+                    commands.spawn((
+                        Sprite { color: Color::srgb(0.55, 0.40, 0.22), custom_size: Some(Vec2::splat(CELL_SIZE * 0.3)), ..default() },
+                        Transform::from_xyz(transform.translation.x + ox, transform.translation.y + oy, 4.0),
+                        Particle { life: 0.0, max_life: 0.3 + quick_rand(seed + i as u64 + 200) * 0.2 },
+                    ));
+                }
+            }
+        }
+    }
+}
+
+pub(crate) fn update_particles(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut Particle, &mut Sprite, &mut Transform)>,
+) {
+    for (entity, mut particle, mut sprite, mut transform) in query.iter_mut() {
+        particle.life += time.delta_secs();
+        let t = (particle.life / particle.max_life).min(1.0);
+        sprite.color.set_alpha(1.0 - t);
+        transform.translation.y += time.delta_secs() * 4.0; // float up
+        if particle.life >= particle.max_life {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+fn quick_rand(seed: u64) -> f32 {
+    let x = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+    ((x >> 32) as u32) as f32 / u32::MAX as f32
 }
 
 fn action_tint(action: Action, stress: f32, _agitation: f32) -> Color {
