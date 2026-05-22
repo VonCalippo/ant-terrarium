@@ -60,6 +60,7 @@ pub enum Action {
     Rest,
     Groom,
     Flee { from: GridPos },
+    Trophallaxis { to_ant_id: usize }, // Food sharing with other ants
 }
 
 impl Action {
@@ -73,6 +74,7 @@ impl Action {
             Action::CarryDirt { .. } | Action::CarryFood { .. } => 1,
             Action::Groom => 4,
             Action::Flee { .. } => 1,
+            Action::Trophallaxis { .. } => 3,
             Action::Idle => 1,
         }
     }
@@ -468,16 +470,19 @@ pub fn calculate_impulses(
             impulses.push(Impulse { action: Action::Dig(Direction::S), weight: 0.85 });
         }
 
-        // Underground expansion: dig to make space
+        // Underground expansion: dig to make space - CRITICAL for colony building
         if matches!(perception.cells[1][1], Material::Dirt | Material::LooseDirt | Material::WetDirt) {
-            let w = 0.35 + brain.maintenance_drive * 0.3 + signal.crowding * 0.3;
-            impulses.push(Impulse { action: Action::Dig(dir), weight: w.min(0.8) });
+            // Builders prioritize creating chambers and tunnels
+            let base_weight = if matches!(body.role, Role::Builder) { 0.5 } else { 0.35 };
+            let w = base_weight + brain.maintenance_drive * 0.3 + signal.crowding * 0.3;
+            impulses.push(Impulse { action: Action::Dig(dir), weight: w.min(0.9) });
         }
 
         // In air underground (chamber): expand moderately
         if perception.cells[1][1] == Material::Air && !on_surface && !perception.dirt_adjacent.is_empty() {
-            let w = 0.3 + signal.crowding * 0.3 + brain.maintenance_drive * 0.2;
-            impulses.push(Impulse { action: Action::Dig(dir), weight: w.min(0.7) });
+            let base_weight = if matches!(body.role, Role::Builder) { 0.4 } else { 0.3 };
+            let w = base_weight + signal.crowding * 0.3 + brain.maintenance_drive * 0.2;
+            impulses.push(Impulse { action: Action::Dig(dir), weight: w.min(0.8) });
         }
 
         // If hungry and underground, dig up toward surface
@@ -488,10 +493,16 @@ pub fn calculate_impulses(
         }
     }
 
-    // Carrying dirt: find a place to dump
+    // Carrying dirt: find a place to dump or follow waste pheromone
     if body.carrying == Some(CarriedItem::Dirt) {
-        // Dump in nearest air cell (creates natural dumping areas)
-        impulses.push(Impulse { action: Action::CarryDirt { to: body.pos }, weight: 0.8 });
+        // If there's a waste depot nearby, bring dirt there
+        if let Some((dir, strength)) = perception.strongest_pheromone_dir(PheromoneType::Waste) {
+            if strength > 50 {
+                impulses.push(Impulse { action: Action::Move(dir), weight: 0.85 });
+            }
+        }
+        // Otherwise dump in nearest air cell
+        impulses.push(Impulse { action: Action::CarryDirt { to: body.pos }, weight: 0.7 });
     }
 
     if brain.stress > 0.7 {
@@ -562,10 +573,12 @@ pub fn calculate_impulses(
         impulses.push(Impulse { action: Action::Move(dir), weight: w.min(0.85) });
     }
 
-    // DIG pheromone: go where others are digging
+    // DIG pheromone: go where others are digging - STRONG signal
     if let Some((dir, strength)) = perception.strongest_pheromone_dir(PheromoneType::Dig) {
-        let w = (strength as f32 / 255.0) * 0.5 * (1.0 + ps);
-        impulses.push(Impulse { action: Action::Dig(dir), weight: w.min(0.8) });
+        // Builders are strongly attracted to dig pheromone
+        let sensitivity_mult = if matches!(body.role, Role::Builder) { 1.5 } else { 1.0 };
+        let w = (strength as f32 / 255.0) * 0.7 * (1.0 + ps) * sensitivity_mult;
+        impulses.push(Impulse { action: Action::Dig(dir), weight: w.min(0.95) });
     }
 
     // DANGER pheromone repel
@@ -632,6 +645,7 @@ pub fn execute_action(
     memory: &mut AntMemory,
     grid: &mut Grid,
     traits: Option<&AntTraits>,
+    pending_digs: &mut Vec<crate::terrain::DigState>,
 ) -> Vec<AntEvent> {
     let mut events = Vec::new();
     let ticks_needed = body.ticks_for_action(traits);
@@ -647,10 +661,13 @@ pub fn execute_action(
             if let Some(new_pos) = body.pos.neighbor(dir) {
                 if grid.contains(new_pos) {
                     if let Some(cell) = grid.get(new_pos) {
-                        if cell.material.is_walkable() && memory.recently_visited(new_pos, 2) {
+                        // Can only move to walkable cells with ground support
+                        let can_move = cell.material.is_walkable() && grid.has_ground_support(new_pos);
+                        
+                        if can_move && memory.recently_visited(new_pos, 2) {
                             let alt = alternate_direction(dir);
                             if let Some(alt_pos) = body.pos.neighbor(alt) {
-                                if grid.contains(alt_pos) && grid.get(alt_pos).map(|c| c.material.is_walkable()).unwrap_or(false) && !memory.recently_visited(alt_pos, 2) {
+                                if grid.contains(alt_pos) && grid.get(alt_pos).map(|c| c.material.is_walkable() && grid.has_ground_support(alt_pos)).unwrap_or(false) && !memory.recently_visited(alt_pos, 2) {
                                     body.pos = alt_pos;
                                     body.direction = alt;
                                     memory.push_position(alt_pos);
@@ -664,7 +681,7 @@ pub fn execute_action(
                                 }
                             }
                             events.push(AntEvent::Blocked { pos: body.pos });
-                        } else {
+                        } else if can_move {
                             body.pos = new_pos;
                             body.direction = dir;
                             memory.push_position(new_pos);
@@ -679,6 +696,9 @@ pub fn execute_action(
                                 grid.deposit_pheromone(new_pos, PheromoneType::Home, 15);
                             }
                             events.push(AntEvent::Moved { from: body.pos, to: new_pos });
+                        } else {
+                            // Can't move - blocked or no ground support
+                            events.push(AntEvent::Blocked { pos: body.pos });
                         }
                     }
                 }
@@ -688,7 +708,8 @@ pub fn execute_action(
             if let Some(target_pos) = body.pos.neighbor(dir) {
                 if let Some(cell) = grid.get(target_pos) {
                     if cell.material.is_diggable() {
-                        crate::terrain::start_dig(grid, target_pos, &mut Vec::new());
+                        // Register dig in global pending_digs list
+                        crate::terrain::start_dig(grid, target_pos, pending_digs);
                         grid.deposit_pheromone(target_pos, PheromoneType::Dig, 100);
                         events.push(AntEvent::StartedDigging { pos: target_pos });
                     }
@@ -755,7 +776,9 @@ pub fn execute_action(
         }
         Action::CarryFood { to } => {
             if body.pos == to {
+                // Delivered to queen or nest location
                 body.carrying = None;
+                memory.recent_food.clear(); // Reset food memory after delivery
                 events.push(AntEvent::DeliveredFood { pos: to });
             }
         }
@@ -777,6 +800,10 @@ pub fn execute_action(
         Action::Groom => {
             brain.stress = (brain.stress - 0.3).max(0.0);
             events.push(AntEvent::Groomed { pos: body.pos });
+        }
+        Action::Trophallaxis { .. } => {
+            // Food sharing - not fully implemented yet, but allocate the ticks
+            // In a full implementation, this would transfer some food to adjacent ants
         }
         Action::Idle => {}
     }

@@ -201,6 +201,18 @@ impl Grid {
         self.get(pos.neighbor(Direction::S)?)
     }
 
+    pub fn has_ground_support(&self, pos: GridPos) -> bool {
+        // A position has ground support if there's solid terrain below it
+        // or if it's at the bottom edge of the map
+        if let Some(below) = self.cell_below(pos) {
+            below.material.is_solid()
+        } else {
+            // If there's no cell below (bottom of map), ant can't be there anyway
+            // But being generous with bottom edge
+            pos.y >= self.height - 1
+        }
+    }
+
     pub fn iter_positions(&self) -> impl Iterator<Item = GridPos> + '_ {
         (0..self.height).flat_map(move |y| {
             (0..self.width).map(move |x| GridPos::new(x, y))
@@ -244,21 +256,31 @@ impl Grid {
             }
         }
 
-        // Queen chamber + entrance tunnel
+        // Queen chamber + entrance tunnel — roomy enough for movement
         let cx = width / 2;
-        let cy = surface_y + 2;
+        let cy = surface_y + 3;
 
-        // Entrance tunnel: 2-wide vertical shaft from surface down to chamber
-        grid.set_material(GridPos::new(cx, surface_y), Material::Air);
-        grid.set_material(GridPos::new(cx - 1, surface_y), Material::Air);      // wider entrance
-        grid.set_material(GridPos::new(cx, surface_y + 1), Material::Air);
-        grid.set_material(GridPos::new(cx - 1, surface_y + 1), Material::Air);  // wider shaft
+        // Wide entrance: 3-wide at surface, 2-wide shaft
+        for dx in -1i32..=1 {
+            grid.set_material(GridPos::new((cx as i32 + dx) as u16, surface_y), Material::Air);
+        }
+        for dy in 1i32..=2 {
+            for dx in -1i32..=0 {
+                grid.set_material(GridPos::new((cx as i32 + dx) as u16, (surface_y as i32 + dy) as u16), Material::Air);
+            }
+        }
 
-        // Chamber: 2x2 air pocket just for the queen
-        grid.set_material(GridPos::new(cx, cy), Material::Air);
-        grid.set_material(GridPos::new(cx, cy + 1), Material::Air);
-        grid.set_material(GridPos::new(cx + 1, cy), Material::Air);
-        grid.set_material(GridPos::new(cx + 1, cy + 1), Material::Air);
+        // Main chamber: 4x3 room
+        for dy in 0i32..3 {
+            for dx in -2i32..=1 {
+                grid.set_material(GridPos::new((cx as i32 + dx) as u16, (cy as i32 + dy) as u16), Material::Air);
+            }
+        }
+
+        // Side passage: short horizontal tunnel for exploration space
+        for dx in 1i32..=3 {
+            grid.set_material(GridPos::new((cx as i32 + dx) as u16, cy + 1), Material::Air);
+        }
         // Entrance tunnel from chamber to surface
         grid.set_material(GridPos::new(cx, surface_y + 1), Material::Air);
         grid.set_material(GridPos::new(cx, surface_y), Material::Air);
@@ -276,8 +298,8 @@ impl Grid {
     }
 
     pub fn queen_position(&self) -> GridPos {
-        // Queen in the pre-dug chamber, 2 rows below surface
-        let y = self.surface_y() + 2;
+        // Queen in the pre-dug chamber, 4 rows below surface
+        let y = self.surface_y() + 4;
         GridPos::new(self.width / 2, y)
     }
 
@@ -516,6 +538,6 @@ mod tests {
         assert_eq!(grid.get(GridPos::new(48, 71)).unwrap().material, Material::Stone);
         let qpos = grid.queen_position();
         assert_eq!(qpos.x, 48);
-        assert_eq!(qpos.y, sy + 2);
+        assert_eq!(qpos.y, sy + 4);
     }
 }

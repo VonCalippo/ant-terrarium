@@ -143,6 +143,7 @@ impl Simulation {
                 &mut self.ants.memories[i],
                 &mut self.grid,
                 Some(&self.ants.traits_vec[i]),
+                &mut self.pending_digs,
             );
             events.extend(new_events);
 
@@ -168,8 +169,19 @@ impl Simulation {
                 &mut self.ants.memories[i],
                 &mut self.grid,
                 Some(&self.ants.traits_vec[i]),
+                &mut self.pending_digs,
             );
             events.extend(followup);
+        }
+
+        // Process delivery events: queens receive food
+        for event in &events {
+            if let AntEvent::DeliveredFood { pos } = event {
+                // If delivery happened at queen location, feed the queen
+                if *pos == self.queen.pos {
+                    self.queen.deliver_food();
+                }
+            }
         }
 
         events

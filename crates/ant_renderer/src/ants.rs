@@ -7,10 +7,18 @@ use crate::assets::CELL_SIZE;
 
 const ANT_SIZE: f32 = 2.0;   // multiple of CELL_SIZE
 const ANT_CARRY_SIZE: f32 = 2.4;
+const GRAVITY: f32 = 1.5;    // pixels per second²
+const TERMINAL_VELOCITY: f32 = 8.0;  // max fall speed
 
 #[derive(Component)]
 pub struct AntSprite {
     pub ant_id: usize,
+}
+
+#[derive(Component)]
+pub struct AntPhysics {
+    pub velocity_y: f32,  // vertical velocity for gravity
+    pub grounded: bool,   // is on solid ground
 }
 
 #[derive(Component)]
@@ -41,6 +49,10 @@ pub(crate) fn spawn_ant_sprites(
             Transform::from_xyz(x, y, 3.0),
             AntSprite { ant_id: ant.id },
             AntTarget { x, y },
+            AntPhysics {
+                velocity_y: 0.0,
+                grounded: true,
+            },
         ));
     }
 }
@@ -50,7 +62,7 @@ pub(crate) struct AntTarget { pub(crate) x: f32, pub(crate) y: f32 }
 
 pub(crate) fn update_ant_sprites(
     time: Res<Time>,
-    mut query: Query<(&AntSprite, &mut Sprite, &mut Transform, &mut AntTarget)>,
+    mut query: Query<(&AntSprite, &mut Sprite, &mut Transform, &mut AntTarget, &mut AntPhysics)>,
     simulation_state: Res<SimulationState>,
     pixel_assets: Res<PixelAssets>,
 ) {
@@ -62,10 +74,39 @@ pub(crate) fn update_ant_sprites(
     let dt = time.delta_secs();
     let lerp_speed = 8.0;
 
-    for (ant_sprite, mut sprite, mut transform, mut target) in query.iter_mut() {
+    for (ant_sprite, mut sprite, mut transform, mut target, mut physics) in query.iter_mut() {
         if let Some(ant) = snapshot.ants.iter().find(|a| a.id == ant_sprite.ant_id) {
+            // Horizontal movement
             target.x = ant.pos.x as f32 * CELL_SIZE;
-            target.y = -(ant.pos.y as f32 * CELL_SIZE);
+            let target_grid_y = -(ant.pos.y as f32 * CELL_SIZE);
+            
+            // Check if there's solid ground below the ant
+            let cell_y = ant.pos.y;
+            let cell_below_y = cell_y + 1;
+            
+            let has_support = if cell_below_y < snapshot.height {
+                let idx_below = cell_below_y as usize * snapshot.width as usize + ant.pos.x as usize;
+                if idx_below < snapshot.cells.len() {
+                    let below_material = snapshot.cells[idx_below].material;
+                    below_material.is_solid()
+                } else {
+                    false
+                }
+            } else {
+                false // Outside grid below
+            };
+
+            // Update physics
+            if has_support {
+                physics.grounded = true;
+                physics.velocity_y = 0.0;
+                target.y = target_grid_y;
+            } else {
+                physics.grounded = false;
+                // Apply gravity
+                physics.velocity_y = (physics.velocity_y + GRAVITY * dt).min(TERMINAL_VELOCITY);
+                target.y = target_grid_y - physics.velocity_y * CELL_SIZE * dt;
+            }
 
             sprite.image = ant_sprite_handle(&pixel_assets, ant.direction, snapshot.tick);
 
@@ -139,6 +180,7 @@ fn action_tint(action: Action, stress: f32, _agitation: f32) -> Color {
         Action::Eat => Color::srgb(0.5, 0.9, 0.5),
         Action::Flee { .. } => Color::srgb(1.0, 0.3, 0.2),    // red when fleeing
         Action::Groom => Color::srgb(0.7, 0.8, 1.0),
+        Action::Trophallaxis { .. } => Color::srgb(1.0, 0.7, 0.4), // orange when sharing food
     };
 
     if stress > 0.7 {

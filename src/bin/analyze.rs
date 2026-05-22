@@ -142,7 +142,7 @@ fn main() {
     println!("\n══════════════════════════════════════════════");
     println!("  Action Distribution (total)");
     println!("══════════════════════════════════════════════");
-    let actions = ["Idle", "Move", "Dig", "CarryDirt", "Collect", "CarryFood", "Eat", "Rest", "Groom", "Flee"];
+    let actions = ["Idle", "Move", "Dig", "CarryDirt", "Collect", "CarryFood", "Eat", "Rest", "Groom", "Flee", "Share"];
     let max_a = *action_counts.iter().max().unwrap_or(&1) as f32;
     for (i, name) in actions.iter().enumerate() {
         if action_counts[i] > 0 {
@@ -209,6 +209,7 @@ fn action_index(action: ant_simulation::ant::Action) -> usize {
         Action::CarryDirt { .. } => 3, Action::CollectFood => 4,
         Action::CarryFood { .. } => 5, Action::Eat => 6, Action::Rest => 7,
         Action::Groom => 8, Action::Flee { .. } => 9,
+        Action::Trophallaxis { .. } => 10,
     }
 }
 
@@ -229,7 +230,7 @@ struct Metrics {
     danger_pheromone: usize,
 }
 
-fn generate_html(history: &[Metrics], action_counts: &[usize; 11], action_names: &[&str; 10], total_ticks: u64, _heatmap: &[f32], _w: usize, _h: usize) {
+fn generate_html(history: &[Metrics], action_counts: &[usize; 11], action_names: &[&str; 11], total_ticks: u64, _heatmap: &[f32], _w: usize, _h: usize) {
     let path = std::path::PathBuf::from("colony_analysis.html");
 
     // Build JSON data
@@ -243,7 +244,7 @@ fn generate_html(history: &[Metrics], action_counts: &[usize; 11], action_names:
     let dangerph_json: Vec<usize> = history.iter().map(|m| m.danger_pheromone).collect();
     let eggs_json: Vec<usize> = history.iter().map(|m| m.eggs).collect();
     let larvae_json: Vec<usize> = history.iter().map(|m| m.larvae).collect();
-    let action_json: Vec<usize> = action_counts[..10].to_vec();
+    let action_json: Vec<usize> = action_counts[..11].to_vec();
 
     let html = format!(r#"<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Ant Colony Analysis</title>
